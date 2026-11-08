@@ -136,6 +136,108 @@ int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t*
     return (int)status;
 }
 
+/* Streams to path rather than buffering: a texture pack is far too big to hold
+ * in memory as one body. WinHTTP follows the GitHub release redirect on its own. */
+int Pc_QolHttpDownload(const char* url, const char* path, volatile long long* got)
+{
+    HINTERNET      session = NULL, connect = NULL, request = NULL;
+    URL_COMPONENTS uc;
+    wchar_t        wUrl[2048], wPath[MAX_PATH], host[256], urlPath[1536];
+    DWORD          status = 0, statusLen = (DWORD)sizeof(DWORD);
+    HANDLE         file = INVALID_HANDLE_VALUE;
+    int            failed = 0;
+
+    if (!url || !url[0] || !path || !path[0])
+        return 0;
+    if (MultiByteToWideChar(CP_UTF8, 0, url, -1, wUrl,
+                            (int)(sizeof(wUrl) / sizeof(wUrl[0]))) == 0)
+        return 0;
+    if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wPath,
+                            (int)(sizeof(wPath) / sizeof(wPath[0]))) == 0)
+        return 0;
+
+    memset(&uc, 0, sizeof(uc));
+    uc.dwStructSize     = sizeof(uc);
+    uc.lpszHostName     = host;
+    uc.dwHostNameLength = (DWORD)(sizeof(host) / sizeof(host[0]));
+    uc.lpszUrlPath      = urlPath;
+    uc.dwUrlPathLength  = (DWORD)(sizeof(urlPath) / sizeof(urlPath[0]));
+    if (!WinHttpCrackUrl(wUrl, 0, 0, &uc))
+        return 0;
+
+    session = WinHttpOpen(L"SilentHillPC/1.0",
+                          WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                          WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!session)
+        return 0;
+
+    connect = WinHttpConnect(session, host, uc.nPort, 0);
+    if (connect)
+    {
+        const DWORD flags = (uc.nScheme == INTERNET_SCHEME_HTTPS) ? WINHTTP_FLAG_SECURE : 0;
+        request = WinHttpOpenRequest(connect, L"GET", urlPath, NULL, WINHTTP_NO_REFERER,
+                                     WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
+    }
+
+    if (request &&
+        WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                           WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
+        WinHttpReceiveResponse(request, NULL))
+    {
+        WinHttpQueryHeaders(request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                            WINHTTP_HEADER_NAME_BY_INDEX, &status, &statusLen,
+                            WINHTTP_NO_HEADER_INDEX);
+        if (status == 200)
+        {
+            file = CreateFileW(wPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+                               FILE_ATTRIBUTE_NORMAL, NULL);
+            failed = (file == INVALID_HANDLE_VALUE);
+        }
+
+        while (file != INVALID_HANDLE_VALUE)
+        {
+            char  chunk[64 * 1024];
+            DWORD avail = 0, read = 0, written = 0;
+
+            if (!WinHttpQueryDataAvailable(request, &avail))
+            {
+                failed = 1;
+                break;
+            }
+            if (avail == 0)
+                break;
+            if (avail > sizeof(chunk))
+                avail = (DWORD)sizeof(chunk);
+            if (!WinHttpReadData(request, chunk, avail, &read) || read == 0)
+            {
+                failed = 1;
+                break;
+            }
+            if (!WriteFile(file, chunk, read, &written, NULL) || written != read)
+            {
+                failed = 1;
+                break;
+            }
+            if (got)
+                *got += read;
+        }
+    }
+
+    if (file != INVALID_HANDLE_VALUE)
+        CloseHandle(file);
+    if (failed)
+    {
+        DeleteFileW(wPath);
+        status = 0;
+    }
+    if (request)
+        WinHttpCloseHandle(request);
+    if (connect)
+        WinHttpCloseHandle(connect);
+    WinHttpCloseHandle(session);
+    return (int)status;
+}
+
 #elif defined(SH_RA_HAVE_CURL)
 
 #include <curl/curl.h>

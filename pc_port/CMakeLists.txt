@@ -521,6 +521,11 @@ if(SH_HAVE_RETROACHIEVEMENTS)
         target_link_options(SilentHillPC PRIVATE "-Wl,-export_dynamic")
     elseif(WIN32)
         target_link_libraries(SilentHillPC PRIVATE winhttp)
+        # rc_client.c's clock_gettime lives in libwinpthread; MinGW GCC pulls it
+        # in implicitly, MinGW Clang (CLANGARM64 / Windows on ARM) does not.
+        if(MINGW AND CMAKE_C_COMPILER_ID MATCHES "Clang")
+            target_link_libraries(SilentHillPC PRIVATE pthread)
+        endif()
     else()
         find_package(CURL)
         if(CURL_FOUND)

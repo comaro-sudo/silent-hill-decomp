@@ -58,6 +58,7 @@ s_PcConfig g_PcConfig = {
     .imageAdjustScope = 1, /* world frames only; menus and FMVs left alone */
     .widescreenMode  = 1, /* 0=pillarbox, 1=Hor+ (default, no bars + correct proportions), 2=stretch */
     .menuPillarbox   = 1, /* 1=pillarbox 2D screens (black bars), 0=stretch to fill */
+    .fpsDisplay      = 1, /* FPS counter on by default, top-left; 0 = off */
 #if defined(SH_IOS) || defined(__ANDROID__)
     /* On by default on a phone. Desktop leaves it off because the launcher's mod
      * manager switches it on the moment a load mod is installed; a phone has no
@@ -162,13 +163,13 @@ s_PcConfig g_PcConfig = {
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
     .control2dSnap           = 0, /* 2D control turns into the direction (0), doesn't snap */
-    .minimap                 = 0, /* minimap overlay off by default */
+    .minimap                 = 1, /* square minimap on by default (0 = off, 2 = circle) */
     .anisoLevel              = 8,
     .shadowMapSize           = 1024,
-    .minimapCorner           = 0, /* top-left */
+    .minimapCorner           = 3, /* bottom-right */
     .minimapShape            = 1, /* deprecated; only feeds the old-config migration */
     .configVersion           = 0, /* absent key = pre-versioning; migration runs, then it is stamped */
-    .minimapScale            = 100.0f,
+    .minimapScale            = 75.0f,
     .minimapRequireMap       = 1, /* the map only appears once Harry has found it */
     .minimapShowWithoutMap   = 0, /* no map found: no minimap (1 = empty panel + arrow) */
     .dreamBlur               = 1, /* dream/ghosting screen blur (0 = loading trail only) */
@@ -178,7 +179,7 @@ s_PcConfig g_PcConfig = {
     .heroLight               = 2,
     .dreamBlurStrength       = 1.0f, /* feedback gain of that blur; 1.0 = hardware */
     .loadScreenMin           = 3.0f, /* seconds the Harry loading screen stays up at least */
-    .minimapOpacity          = 100.0f,
+    .minimapOpacity          = 50.0f,
     .disableDpadMovement     = 0, /* D-pad still drives movement (off = byte-identical) */
     .menuFilter              = 0, /* menus unfiltered (off = byte-identical) */
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */

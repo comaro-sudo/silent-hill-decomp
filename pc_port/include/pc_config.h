@@ -355,17 +355,17 @@ typedef struct {
     int control2dSnap;      /* 1 = 2D control snaps Harry instantly to the input direction instead of turning into it (config key: control_2d_snap); default 0 */
     int disableDpadMovement; /* 1 = the controller D-pad no longer drives movement, freeing those D-pad inputs to be bound to other actions (config key: disable_dpad_movement); default 0 */
     int menuFilter;          /* 1 = bilinear-filter menus / 2D screens, independent of the in-game texture Filtering mode; default 0 (config key: menu_filter) */
-    int minimap;             /* minimap overlay: 0 = off, 1 = square, 2 = circle (config key: minimap); default 0 */
+    int minimap;             /* minimap overlay: 0 = off, 1 = square, 2 = circle (config key: minimap); default 1 */
     int anisoLevel;          /* max anisotropic taps, 1..16 (config key: aniso_level); default 8 */
     int shadowMapSize;       /* flashlight shadow-map resolution, 256..8192 (config key: shadow_resolution); default 1024 */
-    int minimapCorner;       /* minimap screen corner: 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right (config key: minimap_corner); default 0 */
-    int fpsDisplay;          /* FPS counter: 0 = off, 1 = top-left, 2 = top-right, 3 = bottom-left, 4 = bottom-right (config key: fps_display); default 0 */
+    int minimapCorner;       /* minimap screen corner: 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right (config key: minimap_corner); default 3 */
+    int fpsDisplay;          /* FPS counter: 0 = off, 1 = top-left, 2 = top-right, 3 = bottom-left, 4 = bottom-right (config key: fps_display); default 1 */
     int minimapShape;        /* DEPRECATED, folded into `minimap`; still read to migrate old configs (config key: minimap_shape) */
     int configVersion;       /* PC_CONFIG_VERSION the file was last written at; 0 = pre-versioning. Drives the default-migration in PcConfig_Load (config key: config_version) */
-    float minimapScale;      /* minimap size percentage, MINIMAP_SCALE_MIN..MAX (config key: minimap_scale); default 100 */
+    float minimapScale;      /* minimap size percentage, MINIMAP_SCALE_MIN..MAX (config key: minimap_scale); default 75 */
     int enablePlugins;       /* 1 = load plugins/*.dll gameplay plugins at boot; 0 = never touch them (config-only key: enable_plugins); default 0 -- a DLL runs arbitrary code, so the surface is strictly opt-in */
     int minimapRequireMap;   /* 1 = only draw the map once the area's paper map has been found; 0 = always draw it (config-only key: minimap_require_map); default 1 */
-    float minimapOpacity;    /* minimap opacity percentage, 0..100 (config key: minimap_opacity); default 100 */
+    float minimapOpacity;    /* minimap opacity percentage, 0..100 (config key: minimap_opacity); default 50 */
     int   adsr;             /* 1 = SPU ADSR envelopes (instrument attack/release fades in sequenced BGM); default 1 (config key: adsr) */
     int   audioOutput;      /* speaker layout: 0 = auto (OpenAL detects the system layout; alsoft.ini honored), 1 = stereo, 2 = quad, 3 = 5.1, 4 = 7.1, 5 = hrtf headphones. With rear speakers active: positional SFX pan on the full circle, wide-stereo BGM layers play from the surrounds (config key: audio_output = auto|stereo|quad|51|71|hrtf) */
     float fpsFov;           /* first-person horizontal FOV in degrees (4:3 basis), 40..140; default 71.1 = the game's OWN projection (H = gsScreenHeight = 224 on the 320-wide progressive frame), so the default is a no-op; applied ONLY during FPS gameplay (config key: fps_fov) */
