@@ -20,9 +20,9 @@ static float PcCfg_ClampF(float v, float lo, float hi)
 
 
 s_PcConfig g_PcConfig = {
-    .windowWidth    = 640,
-    .windowHeight   = 480,
-    .fullscreen     = 0,
+    .windowWidth    = 1920,
+    .windowHeight   = 1200,
+    .fullscreen     = 2, /* borderless */
     .confineCursor  = 1, /* borderless/fullscreen pointer trap; alt-tab still releases it */
     .disableCulling = 1,
     .drawDistancePct = 100, /* 100 = vanilla ~61u; 200 doubles it (worth it with fog turned down) */
@@ -85,7 +85,7 @@ s_PcConfig g_PcConfig = {
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .worldVisibility = 1,
     .wholeMapExteriors = 2, /* auto: whole town drawn while fog_strength < 1.0, the only time it can be seen */
-    .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
+    .usePgxp        = 1, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
     .itemDepthProbe = 0, /* 1=one-shot [ITEMDEPTH] depth dump per item-screen entry (diagnostic) */
     .charaPrimProbe = 0, /* 0=off, else e_CharaId to trace: one-shot [CHARAPRIM] per-model submit/reject dump */
     .psxPolySizeCull = 1, /* 1=PSX GPU parity: cull triangles with screen bbox >1023x511 (hardware never drew them) */
@@ -255,10 +255,10 @@ s_PcConfig g_PcConfig = {
     /* === CLASSIC scheme: tank controls + fixed PSX camera (the default). The
      * keyboard + controller alternates are intentionally unset (== unbound). === */
     .classic = {
-        .keyUp = "Up", .keyDown = "Down", .keyLeft = "Left", .keyRight = "Right",
-        .keyCross = "C", .keyCircle = "V", .keyTriangle = "Z", .keySquare = "X",
-        .keyL1 = "A", .keyR1 = "D", .keyL2 = "Right Shift", .keyR2 = "Left Shift",
-        .keyL3 = "NONE", .keyR3 = "NONE", .keyStart = "Return", .keySelect = "Space",
+        .keyUp = "W", .keyDown = "S", .keyLeft = "A", .keyRight = "D",
+        .keyCross = "Return", .keyCircle = "Left Shift", .keyTriangle = "Z", .keySquare = "Tab",
+        .keyL1 = "Q", .keyR1 = "E", .keyL2 = "Right Shift", .keyR2 = "Left Ctrl",
+        .keyL3 = "NONE", .keyR3 = "NONE", .keyStart = "Escape", .keySelect = "Space",
         .padCross = "a", .padCircle = "b", .padTriangle = "y", .padSquare = "x",
         .padL1 = "leftshoulder", .padR1 = "rightshoulder",
         .padL2 = "lefttrigger", .padR2 = "righttrigger",
@@ -276,11 +276,12 @@ s_PcConfig g_PcConfig = {
      * A/D strafe, mouse aim(RMB)/fire(LMB); controller LT aim / RT fire, A = use.
      * Unbound actions are "NONE" so they don't fall back to a classic default. === */
     .altcam = {
-        .keyUp = "W", .keyDown = "S", .keyLeft = "Left", .keyRight = "Right",
-        .keyCross = "Mouse1", .keyCircle = "F", .keyTriangle = "Tab", .keySquare = "Left Shift",
-        .keyL1 = "A", .keyR1 = "D", .keyL2 = "NONE", .keyR2 = "Mouse2",
-        .keyL3 = "NONE", .keyR3 = "NONE", .keyStart = "Return", .keySelect = "Space",
-        .keyCross2 = "E",
+        /* Same keys as classic; the left mouse button stays a second action/fire key. */
+        .keyUp = "W", .keyDown = "S", .keyLeft = "A", .keyRight = "D",
+        .keyCross = "Return", .keyCircle = "Left Shift", .keyTriangle = "Z", .keySquare = "Tab",
+        .keyL1 = "Q", .keyR1 = "E", .keyL2 = "Right Shift", .keyR2 = "Left Ctrl",
+        .keyL3 = "NONE", .keyR3 = "NONE", .keyStart = "Escape", .keySelect = "Space",
+        .keyCross2 = "Mouse1",
         .padCross = "righttrigger", .padCircle = "b", .padTriangle = "y", .padSquare = "leftshoulder",
         .padL1 = "NONE", .padR1 = "NONE",
         .padL2 = "NONE", .padR2 = "lefttrigger",
