@@ -10,6 +10,8 @@
 #include "lang_ar.h"
 #include "pc_title_style.h"
 #include "pc_ach_screen.h"
+#include "pc_modern.h"
+#include "pc_local_ach.h"
 #include "pc_mouse_cursor.h"
 #include "pc_native_menu_draw.h"
 #include "pc_pause_menu_core.h"
@@ -372,7 +374,9 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 #ifdef SH_RETROACHIEVEMENTS
             /* Hidden like CONTINUE without a save; re-evaluated every frame so the
              * row appears once a set finishes loading. */
-            if (Pc_Ra_SetLoaded())
+            /* Local achievements are always available, so the row always shows;
+             * it lists the online set instead only when one has loaded. */
+            if (Pc_Ra_SetLoaded() || 1)
             {
                 g_MainMenu_VisibleEntryFlags |= 1 << MainMenuEntry_Achievements;
             }
@@ -645,7 +649,8 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 extern int Pc_MouseCursor_Moved(void);
                 extern int Pc_MouseCursor_RightClicked(void);
                 int mcClicked = 0;
-                int mcRow     = Pc_MouseCursor_MenuRowHover(204, 20, 3, ~0u, &mcClicked);
+                /* Four rows on the port: Easy, Normal, Hard, Modern (pc_modern.c). */
+                int mcRow     = Pc_MouseCursor_MenuRowHover(194, 20, 4, ~0u, &mcClicked);
                 if (mcRow >= 0)
                 {
                     if (mcClicked)
@@ -689,9 +694,14 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             }
 
             // Scroll game difficulty options.
+#ifdef SH_PC_PORT
+            #define DIFFICULTY_IDX_LAST 3 /* Modern is a fourth entry on the port. */
+#else
+            #define DIFFICULTY_IDX_LAST 2
+#endif
             if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickUp)
             {
-                prevGameDifficultyIdx = 2;
+                prevGameDifficultyIdx = DIFFICULTY_IDX_LAST;
                 if (newGameSelectedDifficultyIdx > 0)
                 {
                     prevGameDifficultyIdx = newGameSelectedDifficultyIdx - 1;
@@ -701,7 +711,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickDown)
             {
                 nextGameDifficultyIdx = 0;
-                if (newGameSelectedDifficultyIdx < 2)
+                if (newGameSelectedDifficultyIdx < DIFFICULTY_IDX_LAST)
                 {
                     nextGameDifficultyIdx = newGameSelectedDifficultyIdx + 1;
                 }
@@ -732,7 +742,19 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 {
                     int mapId = MapRegistry_FindByName(g_PcConfig.mapName);
                     if (mapId < 0) mapId = 0;
-                    GameBoot_SavegameInitialize(mapId, newGameSelectedDifficultyIdx - 1);
+                    /* Modern (index 3) is Normal underneath plus a save flag. */
+                    Pc_Modern_DropsClear();
+                    if (newGameSelectedDifficultyIdx == 3)
+                    {
+                        GameBoot_SavegameInitialize(mapId, GameDifficulty_Normal);
+                        Pc_Modern_SetActive(1);
+                    }
+                    else
+                    {
+                        GameBoot_SavegameInitialize(mapId, newGameSelectedDifficultyIdx - 1);
+                        Pc_Modern_SetActive(0);
+                    }
+                    Pc_LocalAch_SessionReset();
 
                     /* Randomizer: start the run here, after the savegame wipe and
                      * before GameBoot_MapLoad, so its per-map hook sees a live run
@@ -1131,17 +1153,31 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
 
 static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
 {
+#ifdef SH_PC_PORT
+    /* Fourth entry: Modern (pc_modern.c). Moved up one half-row so four rows
+     * end where the main menu's do. Just the word, no description. */
+    #define DIFFICULTY_MENU_SELECTION_COUNT 4
+    #define COLUMN_POS_Y                    194
+#else
     #define DIFFICULTY_MENU_SELECTION_COUNT 3
-    #define COLUMN_POS_X                    158
     #define COLUMN_POS_Y                    204
+#endif
+    #define COLUMN_POS_X                    158
     #define STR_OFFSET_Y                    20
 
     static const char* DIFFICULTY_MENU_ENTRY_STRINGS[] = {
         "EASY",
         "NORMAL",
-        "HARD"
+        "HARD",
+#ifdef SH_PC_PORT
+        "MODERN"
+#endif
     };
+#ifdef SH_PC_PORT
+    static const u8 STR_OFFSETS_X[] = { 28, 43, 30, 43 };
+#else
     static const u8 STR_OFFSETS_X[] = { 28, 43, 30 };
+#endif
 #ifdef SH_PC_PORT
 #endif
 

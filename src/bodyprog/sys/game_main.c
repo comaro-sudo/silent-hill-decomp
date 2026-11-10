@@ -6,6 +6,8 @@
 #include "xa_player.h"
 #include "pc_msg_voice.h"
 #include "pc_dark_harry.h"
+#include "pc_modern.h"
+#include "pc_local_ach.h"
 #include "pc_pause_menu.h"
 #include <SDL_timer.h>
 #include <math.h>
@@ -3032,6 +3034,8 @@ void MainLoop(void) // 0x80032EE0
         XaPlayer_Update();
         Pc_MsgVoice_Update();
         Pc_DarkHarry_Update(); /* easter egg, pc_dark_harry.c */
+        Pc_Modern_Update();    /* Modern difficulty regen and drops, pc_modern.c */
+        Pc_LocalAch_Update();  /* local achievements, pc_local_ach.c */
         Pc_FogFloorFrameEnd();
         if (g_PcConfig.fpsDisplay)
         {

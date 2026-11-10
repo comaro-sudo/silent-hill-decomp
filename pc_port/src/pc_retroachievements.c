@@ -26,6 +26,7 @@
 
 #include "pc_retroachievements.h"
 #include "pc_ach_screen.h"
+#include "pc_local_ach.h"
 
 #ifdef SH_RETROACHIEVEMENTS
 
@@ -915,6 +916,9 @@ void Pc_Ra_RequestBadge(const char* badgeName)
 
     if (!badgeName || !badgeName[0])
         return;
+    /* Local achievements: badge art comes from disk, never over the network. */
+    if (Pc_LocalAch_RequestBadge(badgeName))
+        return;
     for (i = 0; i < s_askedCount; i++)
     {
         if (strcmp(s_asked[i], badgeName) == 0)
@@ -936,8 +940,12 @@ int Pc_Ra_SnapshotAchievements(PcRaAch* out, int max)
     uint32_t b, a;
     int      n = 0;
 
-    if (!out || max <= 0 || !s_client || !s_active)
+    if (!out || max <= 0)
         return 0;
+    /* No online set loaded (the default: RetroAchievements is opt-in): show the
+     * local achievements instead. */
+    if (!s_client || !s_active)
+        return Pc_LocalAch_Snapshot(out, max);
 
     list = rc_client_create_achievement_list(s_client,
                RC_CLIENT_ACHIEVEMENT_CATEGORY_CORE,
@@ -1632,12 +1640,12 @@ int         Pc_Ra_SetLoaded(void) { return 0; }
 int         Pc_Ra_IsPending(void) { return 0; }
 const char* Pc_Ra_StatusLine(void) { return ""; }
 const char* Pc_Ra_UnavailableReason(void) { return "RetroAchievements is not in this build"; }
-void        Pc_Ra_RequestBadge(const char* badgeName) { (void)badgeName; }
+void        Pc_Ra_RequestBadge(const char* badgeName) { (void)Pc_LocalAch_RequestBadge(badgeName); }
 int         Pc_Ra_BeginPasswordLogin(const char* u, const char* p) { (void)u; (void)p; return 0; }
 int         Pc_Ra_LoginPending(void)  { return 0; }
 const char* Pc_Ra_LoginResult(void)   { return "RetroAchievements is not built in."; }
 void        Pc_Ra_SignOut(void)       {}
 int         Pc_Ra_IsSignedIn(void)    { return 0; }
-int         Pc_Ra_SnapshotAchievements(PcRaAch* out, int max) { (void)out; (void)max; return 0; }
+int         Pc_Ra_SnapshotAchievements(PcRaAch* out, int max) { return (out && max > 0) ? Pc_LocalAch_Snapshot(out, max) : 0; }
 
 #endif /* SH_RETROACHIEVEMENTS */

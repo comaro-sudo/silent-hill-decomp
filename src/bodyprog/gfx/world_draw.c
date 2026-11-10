@@ -7,6 +7,7 @@
 #include "pc_big_lm.h"
 #include "pc_playas.h"
 #include "pc_skin_chara.h"
+#include "pc_modern.h"
 #ifdef SH_PC_PORT
 #include "main/fileinfo.h" /* g_GameRegion — PAL BG_ETC material-UV relocation */
 #endif
@@ -472,6 +473,9 @@ void Gfx_InGameDraw(bool arg0) // 0x8003C878
         s_prevOfy = worldOfy;
         SetGeomOffset(0, worldOfy);
     }
+
+    /* Modern difficulty: enemy drops are added with the map's own objects. */
+    Pc_Modern_DropsUpdate();
 #endif
     Gfx_WorldObjectsDraw(&g_WorldGfxWork);
 

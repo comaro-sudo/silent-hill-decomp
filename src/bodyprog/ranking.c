@@ -12,6 +12,8 @@
 #ifdef SH_PC_PORT
 #include "lang_text.h"
 #include "lang_ar.h"
+#include "pc_modern.h"
+#include "pc_local_ach.h"
 
 /* The difficulty is drawn at an x tuned to each ENGLISH word's width, ending
  * near x=296. Shift by the width difference so a longer translation keeps
@@ -622,6 +624,15 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
                 break;
 
             case 0:
+#ifdef SH_PC_PORT
+                /* Modern is Normal plus a save flag; never show a Modern clear as Normal. */
+                if (Pc_Modern_IsActive())
+                {
+                    Gfx_StringSetPosition(RESULTS_X(RES_USA(84, 0xDE), "MODERN"), -0x38);
+                    Gfx_StringDraw("MODERN", 20);
+                    break;
+                }
+#endif
                 Gfx_StringSetPosition(RESULTS_X(RES_USA(84, 0xDE), D_8002B4C0[3]), -0x38);
                 Gfx_StringDraw(D_8002B4C0[3], 20);
                 break;
@@ -830,6 +841,11 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
         Gfx_StringSetColor(StringColorId_White);
         Gfx_StringSetPosition(RES_USA(288, 0x18), 0x124);
         Gfx_StringDraw(D_8002B4C0[25], 0x14);
+
+#ifdef SH_PC_PORT
+        /* Local achievements: game clear, rank score (stars x 10). Unlocks are idempotent. */
+        Pc_LocalAch_OnGameClear(D_800C48B5);
+#endif
 
         if (D_800C48B5 >= 0x64)
         {

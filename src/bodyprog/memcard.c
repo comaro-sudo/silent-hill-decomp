@@ -859,6 +859,15 @@ void MemCard_Process_Load(s_MemCard_Process* statusPtr)
             {
                 memcpy(g_SavegamePtr, &g_MemCard_SaveWork.savegame.savegame, sizeof(s_Savegame));
 #ifdef SH_PC_PORT
+                {
+                    /* Modern difficulty: drops belong to the session, not the save. */
+                    extern void Pc_Modern_DropsClear(void);
+                    extern void Pc_LocalAch_SessionReset(void);
+                    Pc_Modern_DropsClear();
+                    Pc_LocalAch_SessionReset(); /* achievements: per-session counters */
+                }
+#endif
+#ifdef SH_PC_PORT
                 /* A play clock broken by Game_TimerUpdate's old out-of-range
                  * constant. On Clang builds (iOS, Android, macOS) the 290-hour
                  * rollover fired at random, and every firing bumped
