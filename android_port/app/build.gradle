@@ -46,7 +46,9 @@ android {
                 // there. Costs native build time; cheaper than finding out at
                 // the cabinet. `adb shell getprop ro.product.cpu.abilist` on the
                 // cabinet says which one it will actually use.
-                abiFilters 'arm64-v8a', 'armeabi-v7a'
+                // -PshAbis=arm64-v8a builds 64-bit only, for 64-bit devices such
+                // as the Retroid Pocket Flip 2 (half the native build time).
+                abiFilters(*((project.findProperty('shAbis') ?: 'arm64-v8a,armeabi-v7a').toString().split(',')))
             }
         }
     }
