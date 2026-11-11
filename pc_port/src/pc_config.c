@@ -31,7 +31,7 @@ s_PcConfig g_PcConfig = {
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .wholeMapExteriors = 0, /* EXPERIMENTAL: texture+draw every exterior chunk (whole town visible; heavy with fog weakened) */
-    .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
+    .usePgxp        = 1, /* 1=PGXP perspective correct (default on, DEFAULTS.md), 0=affine (PSX look) */
     .msaaSamples    = 0, /* 0=off, 2/4/8 = MSAA sample count */
     .postProcess    = 0, /* 0=off, 1.. = post-process look */
     .tonemap        = 0, /* 0=off, 1=Reinhard, 2=ACES, 3=Filmic */
@@ -73,12 +73,12 @@ s_PcConfig g_PcConfig = {
     .disableDpadMovement     = 0, /* D-pad still drives movement (off = byte-identical) */
     .menuFilter              = 0, /* menus unfiltered (off = byte-identical) */
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
-    .minimap                 = 0, /* minimap overlay off by default */
-    .minimapCorner           = 0, /* top-left */
+    .minimap                 = 1, /* square minimap (DEFAULTS.md) */
+    .minimapCorner           = 3, /* bottom-right (DEFAULTS.md) */
     .minimapShape            = 1, /* deprecated; only feeds the old-config migration */
-    .minimapScale            = 100.0f,
+    .minimapScale            = 75.0f, /* DEFAULTS.md */
     .minimapRequireMap       = 1, /* the map only appears once Harry has found it */
-    .minimapOpacity          = 100.0f,
+    .minimapOpacity          = 50.0f, /* DEFAULTS.md */
     .xboxPalettedTex     = 2,    /* Xbox: paletted cache, palette DMA bit CLEAR (log 054 proved the palette samples on this variant) */
     .xboxVideo720p       = 0,    /* Xbox: 480p by default (720p costs texture-cache RAM) */
     .logDiag             = 0,    /* Xbox: quiet log by default (per-frame diag probes gated; log_diag=1 restores) */
