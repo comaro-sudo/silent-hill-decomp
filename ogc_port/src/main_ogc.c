@@ -179,11 +179,18 @@ int main(void)
         const int noCull  = g_PcConfig.disableCulling;
         int       wide    = g_PcConfig.widescreenMode;
         XboxConfig_ApplyOverrides();
+#if defined(SH_WIIU_PORT)
+        g_PcConfig.preloadChunks = preload;  /* 1 GB: the cfg decides */
+#else
+        /* GameCube / Wii: always stream chunks like the PSX. Preloading a
+         * whole map's exteriors (the PC and 360 default) ran the Wii's 88 MB
+         * out within one map: every [IPD]/[LM] model calloc after that failed,
+         * so the town had no floor to draw or stand on (Dolphin, 2026-11-11). */
+        (void)preload;
+        g_PcConfig.preloadChunks = 0;
+#endif
 #if defined(SH_GC_PORT)
         wide = 0;                        /* 4:3 only; no widescreen setting */
-        g_PcConfig.preloadChunks = 0;    /* 24 MB: stream chunks */
-#else
-        g_PcConfig.preloadChunks = preload;
 #endif
         g_PcConfig.disableCulling = noCull;
         g_PcConfig.widescreenMode = wide;

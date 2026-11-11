@@ -61,7 +61,10 @@ PRELUDE="-include $SCRIPT_DIR/include/ogc_prelude.h"
 # -O2 needs these two, exactly as on the Original Xbox: the decomp type-puns
 # constantly and relies on wrapping signed overflow.
 OPT="${SH_OPT:--O2 -fno-strict-aliasing -fwrapv}"
-FLAGS="$MACHDEP -ffunction-sections -fdata-sections $OPT"
+# -fsigned-char: PowerPC gcc makes plain `char` unsigned; x86 (PC, the code's
+# reference) and MSVC (the 360 XDK build that plays) make it signed. The decomp
+# and port code store small negative values in plain char in places.
+FLAGS="$MACHDEP -fsigned-char -ffunction-sections -fdata-sections $OPT"
 compile_one() {
     local f="$1" obj="$2" extra="$3" tool std err
     case "$f" in

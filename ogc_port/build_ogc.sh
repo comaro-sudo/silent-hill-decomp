@@ -37,13 +37,20 @@ case "$PLATFORM" in
 esac
 LIBPATH=""
 [ -n "$LIBDIR" ] && LIBPATH="-L$DEVKITPRO/libogc/lib/$LIBDIR"
+# GameCube/Wii: start the program at 0x80200000, above the PSX's 2 MB. The map
+# loader (map_xbox.c MapXbox_SanitizeHeader) clears every overlay-header word in
+# 0x80000000-0x801FFFFF as a leftover raw PSX address; at libogc's default
+# 0x80004000 the real function pointers live there too and were all cleared
+# (first Dolphin run: ISI at PC 0 from GameBoot_InGameInit -> particlesUpdate).
+LOADADDR=""
+[ -n "$LIBDIR" ] && LOADADDR="-Wl,--section-start,.init=0x80200000"
 
 echo; echo "=== link ($(ls "$GATE"/*.o | wc -l) objects, $(echo $MAPLIBS | wc -w) map archives) ==="
 # --whole-archive for the maps: some map objects are reached only through data
 # tables and constructors, never by a symbol the linker is already chasing.
 if ! $CXX $MACHDEP -specs="$SPECS" "$GATE"/*.o \
         -Wl,--whole-archive $MAPLIBS -Wl,--no-whole-archive \
-        $LIBPATH $SYSLIBS \
+        $LIBPATH $SYSLIBS $LOADADDR \
         -Wl,-Map,"$OUT/silenthill.map" -o "$OUT/silenthill.elf" 2> "$SCRIPT_DIR/build/$PLATFORM/link.log"; then
     echo "LINK FAILED - undefined symbols by count:"
     grep -oP "undefined reference to \`\K[^']+" "$SCRIPT_DIR/build/$PLATFORM/link.log" \
