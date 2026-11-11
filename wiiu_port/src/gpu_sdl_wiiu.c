@@ -94,6 +94,7 @@ static SDL_Texture* s_big[2];
 static int          s_bigW[2], s_bigH[2], s_bigSolid[2], s_bigNext;
 
 static SDL_Texture* s_curTex;          /* NULL = untextured */
+static SDL_Texture* s_curMask;         /* fog-pass mask of s_curTex (white, its alpha) or NULL */
 static float        s_uScale, s_vScale;
 static const void*  s_texAddr; static const void* s_texPal; static int s_texW, s_texH;
 static int          s_texSolid = -1;   /* variant the current bind was made for */
@@ -173,7 +174,8 @@ static void Convert(const unsigned* src, const unsigned* pal, int w, int h, int 
     int i, n = w * h;
     for (i = 0; i < n; i++) {
         unsigned c = pal ? pal[idx[i]] : src[i];
-        if (solid && (c >> 24)) c |= 0xFF000000u;
+        if (solid == 2) c = (c >> 24) ? 0xFFFFFFFFu : 0x00FFFFFFu;   /* fog mask */
+        else if (solid && (c >> 24)) c |= 0xFF000000u;
         s_conv[i] = c;
     }
 }
@@ -268,15 +270,28 @@ static void Rebind(void)
     TexEnt* e;
     s_texSolid = solid;
     if (!s_ready) return;
-    if (!s_texAddr) { Use(NULL, 0, 0); return; }
+    /* s_curMask belongs to the batch still pending: Use() flushes it, and only
+     * then may the mask change (clearing it first dropped that batch's fog). */
+    if (!s_texAddr) { Use(NULL, 0, 0); s_curMask = NULL; return; }
     if (s_texPal) {
         e = CacheLookup(s_texAddr, s_texPal, PAGE, PAGE, solid);
         Use(e ? e->tex : NULL, 1.0f, 1.0f);           /* UVs arrive /256 */
+        s_curMask = NULL;
+        if (s_blendMode == 0) {
+            TexEnt* m = CacheLookup(s_texAddr, s_texPal, PAGE, PAGE, 2);
+            s_curMask = m ? m->tex : NULL;
+        }
     } else if (s_texW > PAGE || s_texH > PAGE) {
         BindBig(s_texAddr, s_texW, s_texH, solid);
+        s_curMask = NULL;
     } else {
         e = CacheLookup(s_texAddr, NULL, s_texW, s_texH, solid);
         Use(e ? e->tex : NULL, 1.0f / (float)PAGE, 1.0f / (float)PAGE);
+        s_curMask = NULL;
+        if (s_blendMode == 0) {
+            TexEnt* m = CacheLookup(s_texAddr, NULL, s_texW, s_texH, 2);
+            s_curMask = m ? m->tex : NULL;
+        }
     }
 }
 
@@ -314,8 +329,8 @@ void GpuNv2a_SetBlendMode(int mode)
     if (mode == s_blendMode) return;
     FlushBatch();
     s_blendMode = mode;
-    if (WantSolid() != wasSolid && s_texAddr)
-        Rebind();                         /* switch the page's alpha variant */
+    if (s_texAddr && (WantSolid() != wasSolid || (mode == 0 && !s_curMask)))
+        Rebind();                         /* alpha variant, or the fog mask for opaque */
 }
 
 static void ApplyClip(void)
@@ -383,14 +398,22 @@ static void FlushBatch(void)
     s_draws++;
 
     if (anySpec && s_blendMode == 0) {
-        /* fog: + spec, untextured additive */
+        /* fog: + spec, additive. Through the texture's MASK (white, its
+         * alpha) so the fog lands only where the texture is visible: drawn
+         * untextured it filled the transparent parts of cut-out sprites --
+         * tree foliage came out as white/lilac blocks (Cemu, 2026-11-11). */
         for (i = 0; i < n; i++) {
             const ShVertex* v = &s_pool[s_flushStart + i];
             s_sv[i].color.r = U8(v->spec[0]); s_sv[i].color.g = U8(v->spec[1]);
             s_sv[i].color.b = U8(v->spec[2]); s_sv[i].color.a = 255;
         }
-        SDL_SetRenderDrawBlendMode(s_ren, s_bmAdd);
-        SDL_RenderGeometry(s_ren, NULL, s_sv, n - n % 3, NULL, 0);
+        if (s_curTex && s_curMask) {
+            SDL_SetTextureBlendMode(s_curMask, s_bmAdd);
+            SDL_RenderGeometry(s_ren, s_curMask, s_sv, n - n % 3, NULL, 0);
+        } else if (!s_curTex) {
+            SDL_SetRenderDrawBlendMode(s_ren, s_bmAdd);
+            SDL_RenderGeometry(s_ren, NULL, s_sv, n - n % 3, NULL, 0);
+        }
         s_draws++;
     }
     s_flushStart = s_poolUsed;

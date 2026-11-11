@@ -49,7 +49,7 @@ collect_srcs() {
     echo "$DECOMP/xbox360_port/src/gpu_selftest.c"
     if [ "$PLATFORM" = wiiu ]; then
         # platform-neutral ogc_port files + the Wii U HAL
-        for f in main_ogc fs_ogc sh_log_ogc stubs_ogc; do echo "$SCRIPT_DIR/src/$f.c"; done
+        for f in main_ogc fs_ogc sh_log_ogc stubs_ogc autoplay; do echo "$SCRIPT_DIR/src/$f.c"; done
         find "$DECOMP/wiiu_port/src" -name '*.c'
     else
         find "$SCRIPT_DIR/src" -name '*.c'

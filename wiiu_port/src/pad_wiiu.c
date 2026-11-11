@@ -205,6 +205,7 @@ void Pad_Poll(void)
     if (rx > 1) rx = 1; if (rx < -1) rx = -1;
     if (ry > 1) ry = 1; if (ry < -1) ry = -1;
 #undef PRESS
+    { extern void Autoplay_Apply(unsigned short* psx); Autoplay_Apply(&psx); }
 
     s_padBuf[0] = 0x00;
     s_padBuf[1] = 0x41;
