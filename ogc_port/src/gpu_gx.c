@@ -81,10 +81,10 @@ static int   s_horPlus = -1;
 /* ---- vertex pool ---------------------------------------------------------- */
 #if defined(SH_GC_PORT)
 #define GPU_POOL_VERTS 8192
-#define TEX_CACHE_N    12               /* 3 MB of 24 */
+#define TEX_CACHE_N    6                /* direct-colour pages only (CI8 does the rest) */
 #else
 #define GPU_POOL_VERTS 24576
-#define TEX_CACHE_N    40               /* 10 MB, in MEM2 */
+#define TEX_CACHE_N    16               /* direct-colour pages only (CI8 does the rest) */
 #endif
 static ShVertex s_pool[GPU_POOL_VERTS];
 static int      s_poolUsed, s_flushStart;
@@ -99,6 +99,27 @@ typedef struct {
     void*       gx;     /* RGBA8 tiles */
 } TexEnt;
 static TexEnt    s_cache[TEX_CACHE_N];
+
+/* Palette-indexed pages, the bulk of the PSX's textures, use GX's native CI8
+ * format: the 8-bit index page is cached ONCE (a byte reshuffle into 8x4
+ * tiles, 64 KB) and each CLUT separately as a 256-entry RGB5A3 TLUT (512 B).
+ * Expanding every page x palette pair to RGBA8 instead (the first version)
+ * converted ~800 pages a frame in town -- the PSX reuses one page with many
+ * CLUTs -- and that conversion was the frame time (Dolphin, 2026-11-11). */
+#if defined(SH_GC_PORT)
+#define CI_N 32                          /* 2 MB */
+#define TL_N 128
+#else
+#define CI_N 128                         /* 8 MB, MEM2 */
+#define TL_N 512
+#endif
+typedef struct { const void* key; unsigned gen, epoch, lastUse; void* buf; } KeyEnt;
+static KeyEnt    s_ci[CI_N];
+static KeyEnt    s_tl[TL_N];
+static GXTlutObj s_curTlut;
+static void*     s_curTl;               /* TLUT buffer of the current bind, NULL = not CI */
+static int       s_tlutDirty;
+static unsigned  s_tlutSlot;
 static void*     s_bigBuf[2];
 static int       s_bigCap[2], s_bigNext;
 static unsigned  s_bigUse[2];
@@ -180,7 +201,8 @@ static void SetupTev(void)
     GX_SetTevColorOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
 
     /* stage 1: + fog colour (second vertex colour channel) */
-    GX_SetTevOrder(GX_TEVSTAGE1, GX_TEXCOORDNULL, GX_TEXMAP_NULL, GX_COLOR1A1);
+    /* stage 1 samples the texture too: ABR0 needs the texel alpha again */
+    GX_SetTevOrder(GX_TEVSTAGE1, GX_TEXCOORD0, GX_TEXMAP0, GX_COLOR1A1);
     GX_SetTevColorIn(GX_TEVSTAGE1, GX_CC_RASC, GX_CC_ZERO, GX_CC_ZERO, GX_CC_CPREV);
     GX_SetTevColorOp(GX_TEVSTAGE1, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
     GX_SetTevAlphaIn(GX_TEVSTAGE1, GX_CA_ZERO, GX_CA_ZERO, GX_CA_ZERO, GX_CA_APREV);
@@ -330,9 +352,10 @@ static void ToRGBA8(u8* dst, const u32* src, const u32* pal, int w, int h)
 
 static void UseTexture(void* gx, int w, int h, float us, float vs)
 {
-    if (s_curObjValid && s_curGx == gx && s_uScale == us && s_vScale == vs)
+    if (s_curObjValid && s_curGx == gx && !s_curTl && s_uScale == us && s_vScale == vs)
         return;
     FlushBatch();
+    s_curTl = NULL;                      /* direct colour, no TLUT */
     GX_InitTexObj(&s_curObj, gx, (u16)w, (u16)h, GX_TF_RGBA8, GX_CLAMP, GX_CLAMP, GX_FALSE);
     GX_InitTexObjLOD(&s_curObj, GX_NEAR, GX_NEAR, 0.0f, 0.0f, 0.0f, GX_FALSE, GX_FALSE, GX_ANISO_1);
     s_curGx = gx;
@@ -405,17 +428,112 @@ static TexEnt* CacheLookup(const void* page, const void* pal, int w, int h)
     return e;
 }
 
+/* Open-addressed cache keyed by the decoded data's pointer, re-verified by its
+ * generation (PsxVram_DataGen) whenever the decode epoch moves -- the same
+ * validity rule as CacheLookup. `fill` (re)builds buf from key. A slot used
+ * this frame is only taken after the GPU has drained. */
+#define PROBE 8
+static KeyEnt* KeyLookup(KeyEnt* tab, int n, const void* key, int bytes,
+                         void (*fill)(void* buf, const void* key), int* filled)
+{
+    const unsigned ep  = PsxVram_DecodeEpoch();
+    const unsigned now = (unsigned)g_Nv2aFrameCount;
+    unsigned h = (unsigned)(((uintptr_t)key >> 5) * 2654435761u) % (unsigned)n;
+    KeyEnt* victim = NULL;
+    int i;
+    *filled = 0;
+    for (i = 0; i < PROBE; i++) {
+        KeyEnt* e = &tab[(h + i) % n];
+        if (e->key == key && e->buf) {
+            if (e->epoch != ep) {
+                const unsigned g = PsxVram_DataGen(key);
+                if (!(g && g == e->gen)) {
+                    fill(e->buf, key);
+                    DCFlushRange(e->buf, bytes);
+                    e->gen = g;
+                    *filled = 1;
+                }
+                e->epoch = g ? ep : ep - 1u;
+            }
+            e->lastUse = now;
+            return e;
+        }
+        if (!e->key) { if (!victim || victim->key) victim = e; }
+        else if (!victim || (victim->key && e->lastUse < victim->lastUse)) victim = e;
+    }
+    if (!victim->buf) victim->buf = memalign(32, bytes);
+    if (!victim->buf) return NULL;
+    if (victim->key && victim->lastUse == now) {
+        FlushBatch();
+        GX_DrawDone();                   /* still queued this frame */
+    }
+    victim->key = key;
+    fill(victim->buf, key);
+    DCFlushRange(victim->buf, bytes);
+    victim->gen     = PsxVram_DataGen(key);
+    victim->epoch   = victim->gen ? ep : ep - 1u;
+    victim->lastUse = now;
+    *filled = 1;
+    return victim;
+}
+
+/* 256x256 8-bit indices -> CI8 tiles (8x4 texels, 32 bytes, row-major). */
+static void FillCI8(void* buf, const void* key)
+{
+    const u8* src = (const u8*)key;
+    u8* dst = (u8*)buf;
+    int bx, by, y;
+    for (by = 0; by < PAGE; by += 4)
+        for (bx = 0; bx < PAGE; bx += 8)
+            for (y = 0; y < 4; y++, dst += 8)
+                memcpy(dst, src + (by + y) * PAGE + bx, 8);
+}
+
+/* 256 ARGB8888 entries -> RGB5A3: opaque = 1:5:5:5; otherwise 0:3:4:4:4. The
+ * three PSX alpha levels land on 0, 4/7 (STP) and opaque; ApplyAlphaPath
+ * turns those back into exact 0 / 0.5 / 1 where it matters. */
+static void FillTLUT(void* buf, const void* key)
+{
+    const u32* src = (const u32*)key;
+    u16* dst = (u16*)buf;
+    int i;
+    for (i = 0; i < 256; i++) {
+        const u32 c = src[i];
+        const u32 a = c >> 24, r = (c >> 16) & 0xFF, g = (c >> 8) & 0xFF, b = c & 0xFF;
+        if (a == 0xFF)
+            dst[i] = (u16)(0x8000 | ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3));
+        else
+            dst[i] = (u16)(((a >> 5) << 12) | ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4));
+    }
+}
+
 void GpuNv2a_BindPaletted(const void* page, const void* palette)
 {
-    TexEnt* e;
+    KeyEnt *ci, *tl;
+    int f1, f2;
     if (!page || !palette) { GpuNv2a_BindWhite(); return; }
     if (page == s_texAddr && palette == s_texPal)
         return;
     s_texAddr = page; s_texPal = palette; s_texW = s_texH = PAGE;
     s_binds++;
     if (!s_ready) return;
-    e = CacheLookup(page, palette, PAGE, PAGE);
-    if (e) UseTexture(e->gx, PAGE, PAGE, 1.0f, 1.0f);   /* UVs arrive /256 already */
+    ci = KeyLookup(s_ci, CI_N, page, PAGE * PAGE, FillCI8, &f1);
+    tl = KeyLookup(s_tl, TL_N, palette, 256 * 2, FillTLUT, &f2);
+    if (!ci || !tl) { GpuNv2a_BindWhite(); return; }
+    if (f1) { s_texInvalidate = 1; s_uploads++; }
+    if (s_curObjValid && s_curGx == ci->buf && s_curTl == tl->buf)
+        return;
+    FlushBatch();
+    /* rotate the 16 TLUT slots so a reload never lands on one a queued draw
+     * may still be reading */
+    s_tlutSlot = (s_tlutSlot + 1) & 15;
+    GX_InitTlutObj(&s_curTlut, tl->buf, GX_TL_RGB5A3, 256);
+    GX_InitTexObjCI(&s_curObj, ci->buf, PAGE, PAGE, GX_TF_CI8, GX_CLAMP, GX_CLAMP, GX_FALSE,
+                    GX_TLUT0 + s_tlutSlot);
+    GX_InitTexObjLOD(&s_curObj, GX_NEAR, GX_NEAR, 0.0f, 0.0f, 0.0f, GX_FALSE, GX_FALSE, GX_ANISO_1);
+    s_curGx = ci->buf; s_curTl = tl->buf;
+    s_curObjValid = 1; s_curObjDirty = 1; s_tlutDirty = 1;
+    s_uScale = 1.0f; s_vScale = 1.0f;    /* paletted UVs arrive /256 already */
 }
 
 static void BindBig(const void* addr, int w, int h)
@@ -489,10 +607,22 @@ void* GpuNv2a_AllocTexMem(int bytes)
 static void ApplyAlphaPath(void)
 {
     if (s_blendMode == 1) {
-        /* ABR0: alpha straight from the texel (0x80 STP / 0xFF opaque) */
-        GX_SetTevAlphaIn(GX_TEVSTAGE0, GX_CA_ZERO, GX_CA_ZERO, GX_CA_ZERO, GX_CA_TEXA);
-        GX_SetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
-    } else {
+        /* ABR0: exact 0 / 0.5 / 1 from the texel's alpha level, whatever
+         * precision the texture format kept (RGB5A3 has STP at 4/7):
+         *   stage 0: 0.5 where tex.a > 0
+         *   stage 1: + itself where tex.a > 3/4  -> 1.0 for opaque texels */
+        GX_SetTevKAlphaSel(GX_TEVSTAGE0, GX_TEV_KASEL_1_2);
+        GX_SetTevAlphaIn(GX_TEVSTAGE0, GX_CA_TEXA, GX_CA_ZERO, GX_CA_KONST, GX_CA_ZERO);
+        GX_SetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_COMP_A8_GT, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
+        GX_SetTevKAlphaSel(GX_TEVSTAGE1, GX_TEV_KASEL_3_4);
+        GX_SetTevAlphaIn(GX_TEVSTAGE1, GX_CA_TEXA, GX_CA_KONST, GX_CA_APREV, GX_CA_APREV);
+        GX_SetTevAlphaOp(GX_TEVSTAGE1, GX_TEV_COMP_A8_GT, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
+        return;
+    }
+    /* stage 1 passes alpha through in every other mode */
+    GX_SetTevAlphaIn(GX_TEVSTAGE1, GX_CA_ZERO, GX_CA_ZERO, GX_CA_ZERO, GX_CA_APREV);
+    GX_SetTevAlphaOp(GX_TEVSTAGE1, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
+    {
         /* konst where tex.a > 0, else 0 (the alpha test then kills it) */
         GX_SetTevKAlphaSel(GX_TEVSTAGE0, s_blendMode == 4 ? GX_TEV_KASEL_1_4 : GX_TEV_KASEL_1);
         GX_SetTevAlphaIn(GX_TEVSTAGE0, GX_CA_TEXA, GX_CA_ZERO, GX_CA_KONST, GX_CA_ZERO);
@@ -573,6 +703,7 @@ static void FlushBatch(void)
     }
     t0 = mftb();
     if (s_texInvalidate) { GX_InvalidateTexAll(); s_texInvalidate = 0; s_curObjDirty = 1; }
+    if (s_tlutDirty && s_curTl) { GX_LoadTlut(&s_curTlut, GX_TLUT0 + s_tlutSlot); s_tlutDirty = 0; }
     if (s_curObjDirty && s_curObjValid) { GX_LoadTexObj(&s_curObj, GX_TEXMAP0); s_curObjDirty = 0; }
 
     while (count >= 3) {
