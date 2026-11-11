@@ -90,4 +90,26 @@ The PS1 primitive decoder and VRAM decoder (`xbox_port/src/gpu_xbox.c`, `psx_vra
   - No freeze-frame capture (the pause background).
   - Native GX2 with real shaders needs a shader toolchain, which isn't installed.
 - **Video playback:** FMV playback (`fmv_xbox.c`) and XA audio are compiled in as on the 360 XDK build, but not tested here.
-- **Wii U GamePad screen:** none of the second-screen features from `docs/plans/wii-u-port-plan.md` are done; the GamePad is input and rumble only.
+- **Wii U GamePad:** see the next section. Two plan items are missing: radio static through the GamePad speaker, and a live map.
+
+## Wii U GamePad
+
+The TV and the GamePad are separate SDL windows (`SDL_WINDOW_WIIU_TV_ONLY` and `SDL_WINDOW_WIIU_GAMEPAD_ONLY`). The code is `wiiu_port/src/gamepad_screen.c`; the game values it reads come from `gamepad_game.c`.
+
+- **Health strip** along the top during play.
+  - Uses the inventory status display's thresholds and colours (`Gfx_Inventory_HealthStatusDraw`): DANGER below 10 (red), CAUTION below 50 (orange), FINE (yellow-green to green).
+  - An ECG trace whose beat speeds up as health drops. No number, as in the original.
+  - **Tap the strip to hide it**, for the original hidden-health experience. The choice is saved as an empty `gamepad_nohealth` file next to the disc image.
+- **Last-viewed map:**
+  - While the paper map screen is open, the TV image is copied to the GamePad every half second.
+  - The GamePad then keeps the map as last seen, with its markings and Harry's marker.
+  - It's a snapshot, not a live map: the game draws the map only inside the map screen.
+- **Off-TV play:** tap **PAD** (top right) to move the game to the GamePad and black out the TV; tap **TV** to move it back.
+  - The page texture cache is dropped on each switch, since textures belong to one renderer.
+  - Vsync moves to the screen that shows the game.
+- **Rumble:** the game's own vibration calls drive the GamePad motor, including the PS1's low-health heartbeat. Strength becomes the density of the motor's on/off pattern.
+
+**Not done:**
+- **Radio static through the GamePad speaker.** The software SPU mixes everything into one stream. This needs the radio's SPU voices told apart from the rest, plus an AX voice routed to the GamePad only.
+- **Live map.** The paper map would have to be drawn outside the map screen.
+- **Uncertain:** the touch coordinates assume wut's calibrated point is in 1280×720 space. Check this on hardware.

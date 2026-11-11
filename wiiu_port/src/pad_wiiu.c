@@ -84,7 +84,7 @@ void Pad_FillIdle(unsigned char* b)
 
 void Pad_XboxInit(void)
 {
-    VPADInit();
+    /* VPAD needs no init on wut (VPADInit is deprecated); KPAD does */
     KPADInit();
     WPADEnableURCC(1);
     SH_DBG("[PAD] GamePad + Pro / Classic Controller");
@@ -130,6 +130,20 @@ void Pad_Poll(void)
         if (b & VPAD_BUTTON_PLUS)  PRESS(PSX_START);
         lx = vs.leftStick.x;  ly = vs.leftStick.y;
         rx = vs.rightStick.x; ry = vs.rightStick.y;
+
+        /* Touch: one tap per press, in GamePad pixels. The calibrated point
+         * is in the 1280x720 touch space; the screen is 854x480. */
+        {
+            static int s_wasTouched;
+            const int touched = vs.tpNormal.touched && !vs.tpNormal.validity;
+            if (touched && !s_wasTouched) {
+                extern void GamepadScreen_Touch(int x, int y);
+                VPADTouchData cal;
+                VPADGetTPCalibratedPoint(VPAD_CHAN_0, &cal, &vs.tpNormal);
+                GamepadScreen_Touch(cal.x * 854 / 1280, cal.y * 480 / 720);
+            }
+            s_wasTouched = touched;
+        }
     }
 
     for (ch = 0; ch < 4; ch++) {
@@ -217,21 +231,29 @@ int  PadInfoMode(int socket, int term, int offs)    { (void)socket; (void)term; 
 int  PadSetActAlign(int socket, unsigned char* a)   { (void)socket; (void)a; return 1; }
 int  PadSetMainMode(int socket, int offs, int lock) { (void)socket; (void)offs; (void)lock; return 1; }
 
-/* PSX actuator bytes -> GamePad rumble (a pattern of on/off bits). */
+/* PSX actuator bytes -> GamePad rumble. This carries the game's own low-health
+ * heartbeat (the PS1 pulses the DualShock motors through these calls), plus
+ * hits and the radio. The GamePad motor is on/off, driven by a 120-bit pattern,
+ * so strength becomes pulse density: table[0] is the PSX small motor (on/off),
+ * table[1] the large one (0-255). Re-sent only when the strength band changes. */
 void PadSetAct(int socket, unsigned char* table, int len)
 {
-    static int s_on = -1;
+    static int s_band = -1;
     static uint8_t pattern[15];
-    int on;
+    int level, band, i;
     (void)socket;
     if (!table || len < 2) return;
-    on = (table[0] | table[1]) ? 1 : 0;
-    if (on == s_on) return;
-    s_on = on;
-    if (on) {
-        memset(pattern, 0xFF, sizeof(pattern));
-        VPADControlMotor(VPAD_CHAN_0, pattern, 120);
-    } else {
-        VPADStopMotor(VPAD_CHAN_0);
+    level = table[1];
+    if (table[0] && level < 160) level = 160;     /* small motor: a firm buzz */
+    band = (level + 31) / 32;                      /* 0 = off .. 8 = full */
+    if (band == s_band) return;
+    s_band = band;
+    if (band == 0) { VPADStopMotor(VPAD_CHAN_0); return; }
+    /* spread `band` on-bits over every 8 */
+    for (i = 0; i < 120; i++) {
+        const int on = ((i % 8) * band / 8) != (((i % 8) + 1) * band / 8);
+        if (on) pattern[i / 8] |= (uint8_t)(0x80 >> (i % 8));
+        else    pattern[i / 8] &= (uint8_t)~(0x80 >> (i % 8));
     }
+    VPADControlMotor(VPAD_CHAN_0, pattern, 120);
 }

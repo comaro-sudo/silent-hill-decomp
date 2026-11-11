@@ -48,9 +48,27 @@ extern void Pgxp_FrameAdvance(void);
 
 #define TV_W 1920
 #define TV_H 1080
+#define DRC_W 854
+#define DRC_H 480
 
+/* The TV and the GamePad are separate SDL windows (SDL_WINDOW_WIIU_TV_ONLY /
+ * _GAMEPAD_ONLY), each with its own renderer. s_ren is whichever one the game
+ * is drawn on: the TV normally, the GamePad in Off-TV play. Textures belong to
+ * a renderer, so switching drops the page cache (it refills in a frame). */
 SDL_Window*          g_WiiuWindow;
+static SDL_Window*   s_drcWin;
+static SDL_Renderer* s_tvRen;
+static SDL_Renderer* s_drcRen;
 static SDL_Renderer* s_ren;
+static int           s_outW = TV_W, s_outH = TV_H;
+static int           s_offTv;
+
+extern void GamepadScreen_Init(SDL_Renderer* drc);
+extern void GamepadScreen_Draw(SDL_Renderer* drc);
+extern void GamepadScreen_DrawOverlay(SDL_Renderer* drc);
+extern int  GamepadScreen_TakeOffTvToggle(void);
+extern int  GamepadScreen_WantMapCapture(void);
+extern void GamepadScreen_CaptureMap(SDL_Renderer* tv, const SDL_Rect* src);
 static int           s_ready;
 
 static int   s_vpX, s_vpW;
@@ -93,15 +111,15 @@ static void SelectView(void)
     if (want == s_horPlus) return;
     s_horPlus = want;
     if (want) {
-        s_vpX = 0; s_vpW = TV_W;
+        s_vpX = 0; s_vpW = s_outW;
         s_viewW = (float)g_Nv2aContentH * 16.0f / 9.0f;
         s_viewX = (s_viewW - (float)g_Nv2aContentW) * 0.5f;
     } else {
-        s_vpW = TV_H * 4 / 3; s_vpX = (TV_W - s_vpW) / 2;
+        s_vpW = s_outH * 4 / 3; s_vpX = (s_outW - s_vpW) / 2;
         s_viewW = (float)g_Nv2aContentW; s_viewX = 0.0f;
     }
     s_ppuX = (float)s_vpW / s_viewW;
-    s_ppuY = (float)TV_H / (float)g_Nv2aContentH;
+    s_ppuY = (float)s_outH / (float)g_Nv2aContentH;
     g_Nv2aViewW = (int)(s_viewW + 0.5f);
     SH_DBG("[GPU] view: %s (%d px at %d, content %.1f wide)",
            want ? "Hor+ 16:9" : "4:3 pillarbox", s_vpW, s_vpX, s_viewW);
@@ -113,12 +131,21 @@ void GpuNv2a_Init(void)
         SH_DBG("[GPU] SDL video init failed: %s", SDL_GetError());
         return;
     }
-    g_WiiuWindow = SDL_CreateWindow("Silent Hill", 0, 0, TV_W, TV_H, 0);
-    s_ren = g_WiiuWindow ? SDL_CreateRenderer(g_WiiuWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC) : NULL;
-    if (!s_ren) {
+    g_WiiuWindow = SDL_CreateWindow("Silent Hill", 0, 0, TV_W, TV_H, SDL_WINDOW_WIIU_TV_ONLY);
+    s_tvRen = g_WiiuWindow ? SDL_CreateRenderer(g_WiiuWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC) : NULL;
+    if (!s_tvRen) {
         SH_DBG("[GPU] SDL renderer failed: %s", SDL_GetError());
         return;
     }
+    /* GamePad: no vsync of its own -- the main renderer paces the frame, and
+     * two vsynced presents per frame would halve the frame rate. */
+    s_drcWin = SDL_CreateWindow("Silent Hill (GamePad)", 0, 0, DRC_W, DRC_H, SDL_WINDOW_WIIU_GAMEPAD_ONLY);
+    s_drcRen = s_drcWin ? SDL_CreateRenderer(s_drcWin, -1, SDL_RENDERER_ACCELERATED) : NULL;
+    if (s_drcRen)
+        GamepadScreen_Init(s_drcRen);
+    else
+        SH_DBG("[GPU] GamePad window failed: %s - TV only", SDL_GetError());
+    s_ren = s_tvRen;
     s_bmOpaque = SDL_BLENDMODE_BLEND;
     s_bmHalf   = SDL_BLENDMODE_BLEND;
     s_bmAdd    = SDL_ComposeCustomBlendMode(SDL_BLENDFACTOR_SRC_ALPHA, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_ADD,
@@ -294,7 +321,7 @@ static void ApplyClip(void)
 {
     SDL_Rect r;
     if (s_scFull) {
-        r.x = s_vpX; r.y = 0; r.w = s_vpW; r.h = TV_H;
+        r.x = s_vpX; r.y = 0; r.w = s_vpW; r.h = s_outH;
     } else {
         r.x = s_vpX + (int)((s_viewX + (float)s_scX) * s_ppuX);
         r.y = (int)((float)s_scY * s_ppuY);
@@ -406,7 +433,7 @@ void GpuNv2a_FrameBegin(void)
     SDL_SetRenderDrawColor(s_ren, 0, 0, 0, 255);
     SDL_RenderClear(s_ren);
     c = s_clearOverrideOn ? s_clearOverride : GpuXbox_GetClearColor();
-    r.x = s_vpX; r.y = 0; r.w = s_vpW; r.h = TV_H;
+    r.x = s_vpX; r.y = 0; r.w = s_vpW; r.h = s_outH;
     SDL_SetRenderDrawBlendMode(s_ren, SDL_BLENDMODE_NONE);
     SDL_SetRenderDrawColor(s_ren, (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF, 255);
     SDL_RenderFillRect(s_ren, &r);
@@ -414,11 +441,60 @@ void GpuNv2a_FrameBegin(void)
     ApplyClip();
 }
 
+/* Move the game between the TV and the GamePad (Off-TV play). */
+static void SetOffTv(int offTv)
+{
+    int i;
+    if (!s_drcRen || offTv == s_offTv) return;
+    FlushBatch();
+    /* every texture belongs to the old renderer */
+    for (i = 0; i < TEX_CACHE_N; i++) {
+        if (s_cache[i].tex) SDL_DestroyTexture(s_cache[i].tex);
+        memset(&s_cache[i], 0, sizeof(s_cache[i]));
+    }
+    for (i = 0; i < 2; i++) {
+        if (s_big[i]) SDL_DestroyTexture(s_big[i]);
+        s_big[i] = NULL; s_bigW[i] = s_bigH[i] = 0;
+    }
+    s_curTex = NULL; s_texAddr = NULL; s_texPal = NULL;
+    SDL_RenderSetVSync(offTv ? s_tvRen : s_drcRen, 0);
+    SDL_RenderSetVSync(offTv ? s_drcRen : s_tvRen, 1);
+    s_offTv = offTv;
+    s_ren   = offTv ? s_drcRen : s_tvRen;
+    s_outW  = offTv ? DRC_W : TV_W;
+    s_outH  = offTv ? DRC_H : TV_H;
+    s_horPlus = -1;
+    SelectView();
+    if (offTv) {                       /* leave the TV black (both scan buffers) */
+        for (i = 0; i < 2; i++) {
+            SDL_RenderSetClipRect(s_tvRen, NULL);
+            SDL_SetRenderDrawColor(s_tvRen, 0, 0, 0, 255);
+            SDL_RenderClear(s_tvRen);
+            SDL_RenderPresent(s_tvRen);
+        }
+    }
+    SH_DBG("[GPU] output: %s", offTv ? "GamePad (Off-TV)" : "TV");
+}
+
 void GpuNv2a_FrameEnd(void)
 {
     extern void WiiU_ProcPump(void);   /* main/HOME menu handling (pad_wiiu.c) */
     FlushBatch();
-    if (s_ready) SDL_RenderPresent(s_ren);
+    if (s_ready) {
+        if (!s_offTv && s_drcRen && GamepadScreen_WantMapCapture()) {
+            /* the map screen is 2D, so it sits in the TV's 4:3 area */
+            SDL_Rect src = { (TV_W - TV_H * 4 / 3) / 2, 0, TV_H * 4 / 3, TV_H };
+            GamepadScreen_CaptureMap(s_tvRen, &src);
+        }
+        if (s_offTv) GamepadScreen_DrawOverlay(s_drcRen);
+        SDL_RenderPresent(s_ren);
+        if (!s_offTv && s_drcRen) {
+            GamepadScreen_Draw(s_drcRen);
+            SDL_RenderPresent(s_drcRen);
+        }
+        if (GamepadScreen_TakeOffTvToggle())
+            SetOffTv(!s_offTv);
+    }
     Pgxp_FrameAdvance();
     WiiU_ProcPump();
     if ((s_frame % 60) == 0)

@@ -70,6 +70,8 @@ compile_one() {
     esac
     case "$f" in
         */ogc_port/src/*) ;;
+        # wiiu_port's game-side files read decomp state: compiled like game code
+        */wiiu_port/src/*_game.c) std="$std $PRELUDE" ;;
         # real SDL2 headers must beat the game's SDL_*.h shims in xbox_port/include
         */wiiu_port/src/*) std="$std -I$DEVKITPRO/portlibs/wiiu/include/SDL2" ;;
         *.c) std="$std $PRELUDE" ;;
