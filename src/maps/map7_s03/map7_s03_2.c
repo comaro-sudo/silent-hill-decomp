@@ -1901,7 +1901,10 @@ void func_800D9114(s_800F3D48* arg0) // 0x800D9114
  * with stale entries whose buffer was reused by cutscene TIM loads, leaving
  * wild pointers -> func_800D88E8 / field_48 AV (CutsceneGlitch.log: map7_s03
  * +0xEAB5 reading 0xffff...). Drop any entry that fails a canonical check. */
-#if defined(SH_XBOX360_PORT)
+#if defined(SH_WIIU_PORT)
+/* Wii U (wut): everything lives in 0x01000000-0x60000000 (see vw_calc.c). */
+#define SH_F3D48_PTR_OK(p) ((uintptr_t)(p) >= 0x01000000u && (uintptr_t)(p) < 0x60000000u)
+#elif defined(SH_XBOX360_PORT)
 /* Tested BEFORE SH_XBOX_PORT, which the 360 also defines: libXenon maps all RAM
  * at 0x80000000, so the Original Xbox "< 128MB" bound below would reject every
  * valid pointer and declare every pool entry corrupt. */

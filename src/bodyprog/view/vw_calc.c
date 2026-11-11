@@ -486,6 +486,12 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
      * The MSVC CRT never hands out non-canonical pointers; alignment is all the
      * guard needs here. */
     #define COORD_PTR_OK(p) ((p) != NULL && (((uintptr_t)(p) & 3) == 0))
+    #elif defined(SH_WIIU_PORT)
+    /* Wii U (wut): code at 0x02000000, data/heap/stacks in 0x10000000-0x50000000.
+     * Tested before SH_XBOX360_PORT, whose 0x8xxxxxxx window rejects all of it. */
+    #define COORD_PTR_OK(p) ((uintptr_t)(p) >= 0x01000000u && \
+                             (uintptr_t)(p) <  0x60000000u && \
+                             (((uintptr_t)(p) & 3) == 0))
     #elif defined(SH_XBOX360_PORT)
     /* The 360 defines SH_XBOX_PORT too, so it MUST be tested first or it
      * inherits the Original Xbox ranges below -- which reject every valid 360

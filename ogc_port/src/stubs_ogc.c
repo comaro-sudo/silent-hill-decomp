@@ -20,9 +20,11 @@ int g_DebugForceEventIdx = -1;
 
 /* Quit from the game's menu: back to the loader (Homebrew Channel on Wii,
  * Swiss / the IPL on GameCube). exit() runs libogc's return-to-loader stub. */
+#if !defined(SH_WIIU_PORT)                /* Wii U: pad_wiiu.c (ProcUI exit) */
 void Xbox_QuitToDashboard(void)
 {
     extern void SH_DebugLogFlush(void);
     SH_DebugLogFlush();
     exit(0);
 }
+#endif

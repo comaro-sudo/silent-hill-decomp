@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
- * main_ogc.c - GameCube / Wii entry point. Boot order follows the 360's
+ * main_ogc.c - GameCube / Wii / Wii U entry point. Boot order follows the 360's
  * (xbox360_port/xdk/src/main_xdk.cpp, the build that plays), which follows the
  * Original Xbox and PC ones:
  *
@@ -147,9 +147,14 @@ int main(void)
     char pvd[8];
     int  haveBin;
 
+#if defined(SH_WIIU_PORT)
+    { extern void WiiU_Boot(void); WiiU_Boot(); }   /* ProcUI first (pad_wiiu.c) */
+#endif
     haveBin = Sh360Fs_Init();
     SH_DebugLogInit();
-#if defined(SH_GC_PORT)
+#if defined(SH_WIIU_PORT)
+    SH_DBG("[BOOT] Silent Hill - Wii U");
+#elif defined(SH_GC_PORT)
     SH_DBG("[BOOT] Silent Hill - GameCube");
 #else
     SH_DBG("[BOOT] Silent Hill - Wii");
@@ -183,8 +188,13 @@ int main(void)
         g_PcConfig.disableCulling = noCull;
         g_PcConfig.widescreenMode = wide;
         g_PcWidescreenMode = (wide == 1) ? 1 : 0;
+#if defined(SH_WIIU_PORT)
+        g_PcConfig.windowWidth  = g_PcWidescreenMode ? 1920 : 1440;
+        g_PcConfig.windowHeight = 1080;
+#else
         g_PcConfig.windowWidth  = g_PcWidescreenMode ? 854 : 640;
         g_PcConfig.windowHeight = 480;
+#endif
         SH_DBG("[CFG] preload_chunks=%d disable_culling=%d widescreen_mode=%d",
                g_PcConfig.preloadChunks, noCull, g_PcWidescreenMode);
     }

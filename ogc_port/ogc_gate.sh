@@ -47,7 +47,13 @@ collect_srcs() {
     # self-test picture). The libXenon/XDK-bound ones are replaced by ogc_port/src.
     echo "$DECOMP/xbox360_port/src/cd_xbox360.c"
     echo "$DECOMP/xbox360_port/src/gpu_selftest.c"
-    find "$SCRIPT_DIR/src" -name '*.c'
+    if [ "$PLATFORM" = wiiu ]; then
+        # platform-neutral ogc_port files + the Wii U HAL
+        for f in main_ogc fs_ogc sh_log_ogc stubs_ogc; do echo "$SCRIPT_DIR/src/$f.c"; done
+        find "$DECOMP/wiiu_port/src" -name '*.c'
+    else
+        find "$SCRIPT_DIR/src" -name '*.c'
+    fi
     for f in "$DECOMP"/xbox_port/src/*.c; do
         case "$(basename "$f")" in
             crash_xbox.c|dbg_overlay_xbox.c|dsound_bridge.c|dsound_xbox.c|\

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Build the GameCube or Wii port -> ogc_port/bin/<platform>/silenthill.dol
+# Build the GameCube, Wii or Wii U port -> ogc_port/bin/<platform>/silenthill.dol
+# (silenthill.rpx on Wii U)
 #
 #   PLATFORM=wii  bash ogc_port/build_ogc.sh
 #   PLATFORM=cube bash ogc_port/build_ogc.sh
@@ -31,14 +32,18 @@ MAPLIBS=$(ls "$MAPS"/*.a 2>/dev/null | tr '\n' ' ')
 case "$PLATFORM" in
     wii)  SPECS="$DEVKITPRO/libogc/share/rvl.specs"; SYSLIBS="-lfat -lwiiuse -lbte -logc -lm" ;;
     cube) SPECS="$DEVKITPRO/libogc/share/ogc.specs"; SYSLIBS="-lfat -logc -lm" ;;
+    wiiu) SPECS="$DEVKITPRO/wut/share/wut.specs"
+          SYSLIBS="-L$DEVKITPRO/portlibs/wiiu/lib -L$DEVKITPRO/portlibs/ppc/lib -L$DEVKITPRO/wut/lib -lSDL2 -lwut -lm" ;;
 esac
+LIBPATH=""
+[ -n "$LIBDIR" ] && LIBPATH="-L$DEVKITPRO/libogc/lib/$LIBDIR"
 
 echo; echo "=== link ($(ls "$GATE"/*.o | wc -l) objects, $(echo $MAPLIBS | wc -w) map archives) ==="
 # --whole-archive for the maps: some map objects are reached only through data
 # tables and constructors, never by a symbol the linker is already chasing.
 if ! $CXX $MACHDEP -specs="$SPECS" "$GATE"/*.o \
         -Wl,--whole-archive $MAPLIBS -Wl,--no-whole-archive \
-        -L"$DEVKITPRO/libogc/lib/$LIBDIR" $SYSLIBS \
+        $LIBPATH $SYSLIBS \
         -Wl,-Map,"$OUT/silenthill.map" -o "$OUT/silenthill.elf" 2> "$SCRIPT_DIR/build/$PLATFORM/link.log"; then
     echo "LINK FAILED - undefined symbols by count:"
     grep -oP "undefined reference to \`\K[^']+" "$SCRIPT_DIR/build/$PLATFORM/link.log" \
@@ -50,7 +55,13 @@ if ! $CXX $MACHDEP -specs="$SPECS" "$GATE"/*.o \
     exit 1
 fi
 
-elf2dol "$OUT/silenthill.elf" "$OUT/silenthill.dol" || exit 1
+if [ "$PLATFORM" = wiiu ]; then
+    elf2rpl "$OUT/silenthill.elf" "$OUT/silenthill.rpx" || exit 1
+    IMG="$OUT/silenthill.rpx"
+else
+    elf2dol "$OUT/silenthill.elf" "$OUT/silenthill.dol" || exit 1
+    IMG="$OUT/silenthill.dol"
+fi
 echo
 powerpc-eabi-size "$OUT/silenthill.elf"
-ls -l "$OUT/silenthill.dol"
+ls -l "$IMG"

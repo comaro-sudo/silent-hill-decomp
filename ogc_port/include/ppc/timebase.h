@@ -6,13 +6,15 @@
  * through libXenon's mftb()/PPC_TIMEBASE_FREQ under SH_XBOX360_PORT. The
  * instruction is the same on Gekko/Broadway; only the rate differs. The time
  * base runs at a quarter of the bus clock: 162 MHz / 4 on GameCube, 243 MHz / 4
- * on Wii (libogc's TB_TIMER_CLOCK says the same).
+ * on Wii (libogc's TB_TIMER_CLOCK says the same), 248.625 MHz / 4 on Wii U.
  */
 #ifndef SH_OGC_PPC_TIMEBASE_H
 #define SH_OGC_PPC_TIMEBASE_H
 
 #if defined(SH_GC_PORT)
 #define PPC_TIMEBASE_FREQ 40500000ULL
+#elif defined(SH_WIIU_PORT)
+#define PPC_TIMEBASE_FREQ 62156250ULL   /* Espresso: 248.625 MHz bus / 4 */
 #else
 #define PPC_TIMEBASE_FREQ 60750000ULL
 #endif

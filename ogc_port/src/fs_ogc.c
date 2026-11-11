@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
- * fs_ogc.c - filesystem setup for GameCube and Wii (libfat).
+ * fs_ogc.c - filesystem setup for GameCube and Wii (libfat), and Wii U (wut's
+ * SD devoptab, already mounted at fs:/vol/external01).
  *
  * Implements the Sh360Fs_* interface (xbox360_port/include/fs_xbox360.h) that
  * the shared 360 code (cd_xbox360.c, mcard_xbox.c) calls. fatInitDefault()
@@ -18,7 +19,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#if !defined(SH_WIIU_PORT)
 #include <fat.h>
+#endif
 
 #include "sh_log.h"
 #include "fs_xbox360.h"
@@ -30,7 +33,13 @@ static int  s_fatOk;
 const char* Sh360Fs_DataRoot(void) { return s_dataRoot; }
 const char* Sh360Fs_BinName(void)  { return s_binName;  }
 
-#if defined(SH_GC_PORT)
+#if defined(SH_WIIU_PORT)
+/* wut mounts the SD card as fs:/vol/external01 before main */
+static const char* const kRoots[] = {
+    "fs:/vol/external01/silenthill/", "fs:/vol/external01/wiiu/apps/silenthill/",
+    "fs:/vol/external01/",
+};
+#elif defined(SH_GC_PORT)
 static const char* const kRoots[] = {
     "sd2:/silenthill/", "carda:/silenthill/", "cardb:/silenthill/",
     "sd2:/", "carda:/", "cardb:/",
@@ -103,7 +112,11 @@ int Sh360Fs_Init(void)
     if (s_dataRoot[0])
         return s_binName[0] != '\0';
 
+#if defined(SH_WIIU_PORT)
+    s_fatOk = 1;
+#else
     s_fatOk = fatInitDefault() ? 1 : 0;
+#endif
     if (!s_fatOk)
         return 0;
 

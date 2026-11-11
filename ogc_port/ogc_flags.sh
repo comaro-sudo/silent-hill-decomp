@@ -17,11 +17,22 @@ CXX=powerpc-eabi-g++
 case "$PLATFORM" in
     wii)  MACHDEP="-DGEKKO -mrvl -mcpu=750 -meabi -mhard-float"; PDEF="-DSH_WII_PORT"; LIBDIR=wii ;;
     cube) MACHDEP="-DGEKKO -mogc -mcpu=750 -meabi -mhard-float"; PDEF="-DSH_GC_PORT";  LIBDIR=cube ;;
-    *) echo "PLATFORM must be wii or cube"; exit 2 ;;
+    # Wii U (native, wut + SDL2). Same game tree and gate; HAL from wiiu_port/src
+    # plus the platform-neutral ogc_port/src files (collect_srcs in ogc_gate.sh).
+    wiiu) MACHDEP="-mcpu=750 -meabi -mhard-float -D__WIIU__ -D__WUT__"; PDEF="-DSH_WIIU_PORT"; LIBDIR="" ;;
+    *) echo "PLATFORM must be wii, cube or wiiu"; exit 2 ;;
 esac
+if [ "$PLATFORM" = wiiu ]; then
+    SYSINC="-I$DEVKITPRO/wut/include -I$DEVKITPRO/portlibs/wiiu/include
+            -I$DEVKITPRO/portlibs/wiiu/include/SDL2 -I$DEVKITPRO/portlibs/ppc/include"
+    OGCDEF=""
+else
+    SYSINC="-I$DEVKITPRO/libogc/include"
+    OGCDEF="-DSH_OGC_PORT"
+fi
 
 
-DEFS="-DSH_OGC_PORT $PDEF -DSH_XBOX360_PORT -DSH_XBOX_PORT -DSH_PC_PORT -DVER_USA -DSKIP_ASM -DUSE_PGXP=0"
+DEFS="$OGCDEF $PDEF -DSH_XBOX360_PORT -DSH_XBOX_PORT -DSH_PC_PORT -DVER_USA -DSKIP_ASM -DUSE_PGXP=0"
 # PsyX_render.h picks a renderer from the host OS macros; xenon-gcc gets
 # RENDERER_OGL through __linux__ and MSVC through _WIN32. devkitPPC defines
 # neither. Without USE_GLAD this only selects the TextureID/ShaderID typedefs.
@@ -34,7 +45,7 @@ INCS="-I$SCRIPT_DIR/include -I$DECOMP/xbox360_port/include
       -I$DECOMP/include -I$DECOMP/include/decomp
       -I$PSYCROSS/include/psx -I$PSYCROSS/include
       -I$DECOMP/xbox_port/include
-      -I$DEVKITPRO/libogc/include"
+      $SYSINC"
 
 WARN="-Wno-implicit-function-declaration -Wno-implicit-int
       -Wno-incompatible-pointer-types -Wno-int-conversion
@@ -59,6 +70,8 @@ compile_one() {
     esac
     case "$f" in
         */ogc_port/src/*) ;;
+        # real SDL2 headers must beat the game's SDL_*.h shims in xbox_port/include
+        */wiiu_port/src/*) std="$std -I$DEVKITPRO/portlibs/wiiu/include/SDL2" ;;
         *.c) std="$std $PRELUDE" ;;
     esac
     if err=$("$tool" $FLAGS $std $DEFS $INCS $WARN $extra -c "$f" -o "$obj" 2>&1); then
