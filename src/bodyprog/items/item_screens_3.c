@@ -12,6 +12,7 @@
 #include "bodyprog/text/text_draw.h"
 #include "main/rng.h"
 #ifdef SH_PC_PORT
+#include "pc_modern.h"
 #include "sh_log.h"
 #endif
 
@@ -1438,6 +1439,23 @@ void Gfx_Inventory_2dBackgroundDraw(s32* arg0) // 0x8004FBCC
                                 break;
 
                             case GameDifficulty_Normal:
+#ifdef SH_PC_PORT
+                                /* Modern: teal, between Normal's blue and Easy's green. */
+                                if (Pc_Modern_IsActive())
+                                {
+                                    if (i == var_t6 && j == var_t5)
+                                    {
+                                        setRGB0(poly_g4, spA0 - 0x80, 0xC0, 0xC0);
+                                        setRGB2(poly_g4, spA0 - 0x80, 0xC0, 0xC0);
+                                    }
+                                    else
+                                    {
+                                        setRGB0(poly_g4, 0, 0xA8, 0x98);
+                                        setRGB2(poly_g4, 0, 0xA8, 0x98);
+                                    }
+                                    break;
+                                }
+#endif
                                 if (i == var_t6 && j == var_t5)
                                 {
                                     setRGB0(poly_g4, spA0 * 3, spA0 - 0x80, 0xC0);
@@ -1485,6 +1503,23 @@ void Gfx_Inventory_2dBackgroundDraw(s32* arg0) // 0x8004FBCC
                                 break;
 
                             case GameDifficulty_Normal:
+#ifdef SH_PC_PORT
+                                /* Modern: teal, between Normal's blue and Easy's green. */
+                                if (Pc_Modern_IsActive())
+                                {
+                                    if (i == var_t6 && j == var_t5)
+                                    {
+                                        setRGB1(poly_g4, spA0 - 0x80, 0xC0, 0xC0);
+                                        setRGB3(poly_g4, spA0 - 0x80, 0xC0, 0xC0);
+                                    }
+                                    else
+                                    {
+                                        setRGB1(poly_g4, 0, 0xA8, 0x98);
+                                        setRGB3(poly_g4, 0, 0xA8, 0x98);
+                                    }
+                                    break;
+                                }
+#endif
                                 if (i == var_t6 && j == var_t5)
                                 {
                                     setRGB1(poly_g4, spA0 * 3, spA0 - 0x80, 0xC0);

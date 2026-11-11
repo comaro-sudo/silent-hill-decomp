@@ -783,6 +783,13 @@ void MemCard_Process_Load(s_MemCard_Process* statusPtr)
             else
             {
                 memcpy(g_SavegamePtr, &g_MemCard_SaveWork.savegame.savegame, sizeof(s_Savegame));
+#ifdef SH_PC_PORT
+                /* Modern difficulty: drops belong to the session, not the save. */
+                {
+                    extern void Pc_Modern_DropsClear(void);
+                    Pc_Modern_DropsClear();
+                }
+#endif
 #if defined(SH_XBOX360_PORT)
                 /* Saves written by 360 builds before 2026-10-29 can hold item
                  * slots with their four bytes reversed (the inventory sort used

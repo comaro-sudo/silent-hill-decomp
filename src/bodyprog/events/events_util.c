@@ -17,6 +17,7 @@
 
 #ifdef SH_PC_PORT
 #include "sh_log.h"
+#include "pc_modern.h"
 /* The upstream merge moved the paper-map state machines here from
  * bodyprog_80085D78.c (Event_MapTake/func_800867B4, same PSX addresses);
  * the PC fixes below must live in THIS copy — the old one is dead code.
@@ -1232,19 +1233,27 @@ void Event_CommonItemTake(u32 pickupType, e_EventFlag eventFlagIdx) // 0x800879F
         ammoCountMult = CLAMP(ammoCountMult, EASY_DIFFICULTY_AMMO_COUNT_MULT_MIN, ammoCountMult);
     }
 
+#ifdef SH_PC_PORT
+    /* Modern difficulty: at least x2 ammo (like Easy) and x2 health items. */
+    ammoCountMult = Pc_Modern_AmmoMultMin(ammoCountMult);
+    #define MODERN_HEALTH_COUNT Pc_Modern_HealthItemCount(DEFAULT_PICKUP_ITEM_COUNT)
+#else
+    #define MODERN_HEALTH_COUNT DEFAULT_PICKUP_ITEM_COUNT
+#endif
+
     // Handle item pickup.
     switch (pickupType)
     {
         case CommonPickupItemId_FirstAidKit:
-            Event_ItemTake(InvItemId_FirstAidKit, DEFAULT_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_FirstAidSelect);
+            Event_ItemTake(InvItemId_FirstAidKit, MODERN_HEALTH_COUNT, eventFlagIdx, MapMsgIdx_FirstAidSelect);
             break;
 
         case CommonPickupItemId_HealthDrink:
-            Event_ItemTake(InvItemId_HealthDrink, DEFAULT_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_HealthDrinkSelect);
+            Event_ItemTake(InvItemId_HealthDrink, MODERN_HEALTH_COUNT, eventFlagIdx, MapMsgIdx_HealthDrinkSelect);
             break;
 
         case CommonPickupItemId_Ampoule:
-            Event_ItemTake(InvItemId_Ampoule, DEFAULT_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_AmpouleSelect);
+            Event_ItemTake(InvItemId_Ampoule, MODERN_HEALTH_COUNT, eventFlagIdx, MapMsgIdx_AmpouleSelect);
             break;
 
         case CommonPickupItemId_HandgunBullets:
@@ -1261,6 +1270,7 @@ void Event_CommonItemTake(u32 pickupType, e_EventFlag eventFlagIdx) // 0x800879F
     }
 
     #undef EASY_DIFFICULTY_AMMO_COUNT_MULT_MIN
+    #undef MODERN_HEALTH_COUNT
 }
 
 void Event_PaperMapTake(s32 paperMapFlagIdx, e_EventFlag eventFlagIdx, s32 mapMsgIdx) // 0x80087AF4

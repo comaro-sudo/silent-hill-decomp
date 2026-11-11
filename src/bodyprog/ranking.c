@@ -9,6 +9,9 @@
 #include "bodyprog/ranking.h"
 #include "main/fsqueue.h"
 
+#ifdef SH_PC_PORT
+#include "pc_modern.h"
+#endif
 static const s32 pad_rodata_8002B2F8 = 0;
 
 s16 D_800C48A0;
@@ -517,6 +520,15 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
                 break;
 
             case 0:
+#ifdef SH_PC_PORT
+                /* Modern is Normal plus a save flag; never show a Modern clear as Normal. */
+                if (Pc_Modern_IsActive())
+                {
+                    Gfx_StringSetPosition(0xDE, -0x38);
+                    Gfx_StringDraw("MODERN", 20);
+                    break;
+                }
+#endif
                 Gfx_StringSetPosition(0xDE, -0x38);
                 Gfx_StringDraw(D_8002B4C0[3], 20);
                 break;

@@ -4,6 +4,7 @@
 #include <string.h>   /* strcmp — the play-as held-item "HERO" texture test */
 #include "sh_log.h"
 #include "pc_config.h"
+#include "pc_modern.h"
 #ifdef SH_PC_PORT
 #include "main/fileinfo.h" /* g_GameRegion — PAL BG_ETC material-UV relocation */
 #endif
@@ -490,6 +491,10 @@ static inline unsigned long long ShxWdRdtsc(void) { return SH_CYCLES(); }
 
 void Gfx_InGameDraw(bool arg0) // 0x8003C878
 {
+#ifdef SH_PC_PORT
+    /* Modern difficulty: enemy drops are added with the map's own objects. */
+    Pc_Modern_DropsUpdate();
+#endif
     Gfx_WorldObjectsDraw(&g_WorldGfxWork);
 
 #ifdef SH_PC_PORT

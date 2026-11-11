@@ -31,6 +31,7 @@ extern unsigned           g_FsReformatCount;
 #include "sh_log.h"
 #include "pc_config.h"
 #include "xa_player.h"
+#include "pc_modern.h"
 #include <SDL_timer.h>
 #include <math.h>
 extern void PsyX_EndScene(void);
@@ -2357,6 +2358,7 @@ void MainLoop(void) // 0x80032EE0
          * g_Sd_AudioStreamingStates are static there. */
         Sd_TaskPoolDrain();
         XaPlayer_Update();
+        Pc_Modern_Update();    /* Modern difficulty regen and drops, pc_modern.c */
 #endif
 #ifdef SH_XBOX_PORT
         _postAudioMs = (unsigned)((ShxLoopRdtsc() - _a0) / SH_CYCLES_PER_MS);

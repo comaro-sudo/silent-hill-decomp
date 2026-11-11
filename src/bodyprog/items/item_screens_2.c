@@ -17,6 +17,10 @@
 #ifdef SH_PC_PORT
 #include "pc_inventory_mouse.h"
 #include "pc_mouse_cursor.h"
+#include "pc_modern.h"
+
+/* Set when Next Fear starts from a Modern clear (drawn on the results text). */
+static int g_Pc_NextFearModern = 0;
 #endif
 
 static const s32 pad_rodata_80025EAC = 0;
@@ -322,12 +326,24 @@ void GameState_ItemScreens_Update(void) // 0x8004C9B0
             func_8008F94C();
 
             g_Inventory_GameDifficulty = g_SavegamePtr->gameDifficulty;
+#ifdef SH_PC_PORT
+            /* Modern stays Modern on the next playthrough (it isn't a step on
+             * the Easy/Normal/Hard scale). The re-init wipes the save byte, so
+             * set the flag again afterwards. */
+            g_Pc_NextFearModern = Pc_Modern_IsActive();
+            if (!g_Pc_NextFearModern && g_SavegamePtr->gameDifficulty <= GameDifficulty_Normal)
+#else
             if (g_SavegamePtr->gameDifficulty <= GameDifficulty_Normal)
+#endif
             {
                 g_SavegamePtr->gameDifficulty++;
             }
 
             GameBoot_SavegameInitialize(0, g_SavegamePtr->gameDifficulty);
+#ifdef SH_PC_PORT
+            Pc_Modern_SetActive(g_Pc_NextFearModern);
+            Pc_Modern_DropsClear();
+#endif
             func_800904F4();
 
 #if VERSION_REGION_IS(NTSCJ)
@@ -558,6 +574,14 @@ void Gfx_Results_Save(void) // 0x8004D1A0
 
         case GameDifficulty_Normal:
         case GameDifficulty_Hard:
+#ifdef SH_PC_PORT
+            if (g_Pc_NextFearModern || Pc_Modern_IsActive())
+            {
+                Gfx_StringSetPosition(165, 240);
+                Gfx_StringDraw("MODERN", 10);
+                break;
+            }
+#endif
             Gfx_StringSetPosition(136, 240);
             Gfx_StringDraw("HARD", 10);
             break;
