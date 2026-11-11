@@ -139,7 +139,8 @@ void GpuNv2a_Init(void)
     }
     /* GamePad: no vsync of its own -- the main renderer paces the frame, and
      * two vsynced presents per frame would halve the frame rate. */
-    s_drcWin = SDL_CreateWindow("Silent Hill (GamePad)", 0, 0, DRC_W, DRC_H, SDL_WINDOW_WIIU_GAMEPAD_ONLY);
+    s_drcWin = SDL_CreateWindow("Silent Hill (GamePad)", 0, 0, DRC_W, DRC_H,
+                                SDL_WINDOW_WIIU_GAMEPAD_ONLY | SDL_WINDOW_WIIU_PREVENT_SWAP);
     s_drcRen = s_drcWin ? SDL_CreateRenderer(s_drcWin, -1, SDL_RENDERER_ACCELERATED) : NULL;
     if (s_drcRen)
         GamepadScreen_Init(s_drcRen);
@@ -457,22 +458,13 @@ static void SetOffTv(int offTv)
         s_big[i] = NULL; s_bigW[i] = s_bigH[i] = 0;
     }
     s_curTex = NULL; s_texAddr = NULL; s_texPal = NULL;
-    SDL_RenderSetVSync(offTv ? s_tvRen : s_drcRen, 0);
-    SDL_RenderSetVSync(offTv ? s_drcRen : s_tvRen, 1);
+    /* vsync stays on the TV renderer: it presents last every frame (FrameEnd) */
     s_offTv = offTv;
     s_ren   = offTv ? s_drcRen : s_tvRen;
     s_outW  = offTv ? DRC_W : TV_W;
     s_outH  = offTv ? DRC_H : TV_H;
     s_horPlus = -1;
     SelectView();
-    if (offTv) {                       /* leave the TV black (both scan buffers) */
-        for (i = 0; i < 2; i++) {
-            SDL_RenderSetClipRect(s_tvRen, NULL);
-            SDL_SetRenderDrawColor(s_tvRen, 0, 0, 0, 255);
-            SDL_RenderClear(s_tvRen);
-            SDL_RenderPresent(s_tvRen);
-        }
-    }
     SH_DBG("[GPU] output: %s", offTv ? "GamePad (Off-TV)" : "TV");
 }
 
@@ -486,12 +478,22 @@ void GpuNv2a_FrameEnd(void)
             SDL_Rect src = { (TV_W - TV_H * 4 / 3) / 2, 0, TV_H * 4 / 3, TV_H };
             GamepadScreen_CaptureMap(s_tvRen, &src);
         }
-        if (s_offTv) GamepadScreen_DrawOverlay(s_drcRen);
-        SDL_RenderPresent(s_ren);
-        if (!s_offTv && s_drcRen) {
-            GamepadScreen_Draw(s_drcRen);
+        /* One scan-buffer swap per frame. Presenting either SDL window swaps
+         * the TV AND GamePad buffers, so two swaps a frame left the TV showing
+         * a stale/cleared buffer every other frame (black flicker in Cemu,
+         * 2026-11-11). The GamePad window is created with PREVENT_SWAP and is
+         * presented FIRST; the TV present then does the single swap for both. */
+        if (s_drcRen) {
+            if (s_offTv) GamepadScreen_DrawOverlay(s_drcRen);
+            else         GamepadScreen_Draw(s_drcRen);
             SDL_RenderPresent(s_drcRen);
         }
+        if (s_offTv) {                   /* TV stays black, but must still swap */
+            SDL_RenderSetClipRect(s_tvRen, NULL);
+            SDL_SetRenderDrawColor(s_tvRen, 0, 0, 0, 255);
+            SDL_RenderClear(s_tvRen);
+        }
+        SDL_RenderPresent(s_tvRen);
         if (GamepadScreen_TakeOffTvToggle())
             SetOffTv(!s_offTv);
     }
