@@ -107,10 +107,10 @@ static TexEnt    s_cache[TEX_CACHE_N];
  * converted ~800 pages a frame in town -- the PSX reuses one page with many
  * CLUTs -- and that conversion was the frame time (Dolphin, 2026-11-11). */
 #if defined(SH_GC_PORT)
-#define CI_N 32                          /* 2 MB */
+#define CI_N 24                          /* 1.5 MB */
 #define TL_N 128
 #else
-#define CI_N 128                         /* 8 MB, MEM2 */
+#define CI_N 64                          /* 4 MB */
 #define TL_N 512
 #endif
 typedef struct { const void* key; unsigned gen, epoch, lastUse; void* buf; } KeyEnt;
@@ -300,6 +300,18 @@ void GpuNv2a_Init(void)
     }
     DCFlushRange(s_whiteTex, sizeof(s_whiteTex));
 
+    /* CI8 pages and TLUTs are reserved here, at boot, as one block each:
+     * allocating them on first use came too late -- by then the game had the
+     * heap, the allocations failed, and those pages drew untextured (flat grey
+     * sidewalks and buildings in Dolphin, 2026-11-11). */
+    {
+        u8* ci = (u8*)memalign(32, (size_t)CI_N * PAGE * PAGE);
+        u8* tl = (u8*)memalign(32, (size_t)TL_N * 512);
+        if (!ci || !tl)
+            SH_DBG("[GPU] CI8 cache allocation FAILED (ci=%p tl=%p)", (void*)ci, (void*)tl);
+        for (i = 0; i < CI_N; i++) s_ci[i].buf = ci ? ci + (size_t)i * PAGE * PAGE : NULL;
+        for (i = 0; i < TL_N; i++) s_tl[i].buf = tl ? tl + (size_t)i * 512 : NULL;
+    }
     for (i = 0; i < TEX_CACHE_N; i++) {
         s_cache[i].gx = memalign(32, PAGE * PAGE * 4);
         if (!s_cache[i].gx) {
@@ -315,10 +327,10 @@ void GpuNv2a_Init(void)
     GpuNv2a_BindWhite();
     ApplyBlend();
     s_ready = 1;
-    SH_DBG("[GPU] GX up: EFB %dx%d, XFB %dx%d, %s, TV %s, %d-vertex pool, %d cached pages",
+    SH_DBG("[GPU] GX up: EFB %dx%d, XFB %dx%d, %s, TV %s, %d-vertex pool, %d RGBA8 pages, %d CI8 pages, %d TLUTs",
            s_efbW, s_efbH, s_rmode->fbWidth, s_rmode->xfbHeight,
            (s_rmode->viTVMode & VI_NON_INTERLACE) ? "progressive" : "interlaced",
-           s_tv169 ? "16:9" : "4:3", GPU_POOL_VERTS, TEX_CACHE_N);
+           s_tv169 ? "16:9" : "4:3", GPU_POOL_VERTS, TEX_CACHE_N, CI_N, TL_N);
 }
 
 /* ---- texture conversion --------------------------------------------------- */
@@ -461,8 +473,11 @@ static KeyEnt* KeyLookup(KeyEnt* tab, int n, const void* key, int bytes,
         if (!e->key) { if (!victim || victim->key) victim = e; }
         else if (!victim || (victim->key && e->lastUse < victim->lastUse)) victim = e;
     }
-    if (!victim->buf) victim->buf = memalign(32, bytes);
-    if (!victim->buf) return NULL;
+    if (!victim->buf) {
+        static int s_told;
+        if (!s_told++) SH_DBG("[GPU] CI8/TLUT cache has no memory - drawing untextured");
+        return NULL;
+    }
     if (victim->key && victim->lastUse == now) {
         FlushBatch();
         GX_DrawDone();                   /* still queued this frame */
