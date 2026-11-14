@@ -33,8 +33,12 @@ case "$PLATFORM" in
     wii)  SPECS="$DEVKITPRO/libogc/share/rvl.specs"; SYSLIBS="-lfat -lwiiuse -lbte -logc -lm" ;;
     cube) SPECS="$DEVKITPRO/libogc/share/ogc.specs"; SYSLIBS="-lfat -logc -lm" ;;
     wiiu) SPECS="$DEVKITPRO/wut/share/wut.specs"
-          SYSLIBS="-L$DEVKITPRO/portlibs/wiiu/lib -L$DEVKITPRO/portlibs/ppc/lib -L$DEVKITPRO/wut/lib -lSDL2 -lwut -lm" ;;
+          SYSLIBS="-L$DEVKITPRO/portlibs/wiiu/lib -L$DEVKITPRO/portlibs/ppc/lib -L$DEVKITPRO/wut/lib -lSDL2 -lwut -lm"
+          [ "$WIIU_RENDERER" = gx2 ] && SYSLIBS="-L$CAFEGLSL/lib -lcafeglsl $SYSLIBS" ;;
 esac
+# Wii U: the GX2 renderer links to silenthill_gx2.rpx so both builds can sit side by side
+NAME=silenthill
+[ "$PLATFORM" = wiiu ] && [ "$WIIU_RENDERER" = gx2 ] && NAME=silenthill_gx2
 LIBPATH=""
 [ -n "$LIBDIR" ] && LIBPATH="-L$DEVKITPRO/libogc/lib/$LIBDIR"
 # GameCube/Wii: start the program at 0x80200000, above the PSX's 2 MB. The map
@@ -51,7 +55,7 @@ echo; echo "=== link ($(ls "$GATE"/*.o | wc -l) objects, $(echo $MAPLIBS | wc -w
 if ! $CXX $MACHDEP -specs="$SPECS" "$GATE"/*.o \
         -Wl,--whole-archive $MAPLIBS -Wl,--no-whole-archive \
         $LIBPATH $SYSLIBS $LOADADDR \
-        -Wl,-Map,"$OUT/silenthill.map" -o "$OUT/silenthill.elf" 2> "$SCRIPT_DIR/build/$PLATFORM/link.log"; then
+        -Wl,-Map,"$OUT/$NAME.map" -o "$OUT/$NAME.elf" 2> "$SCRIPT_DIR/build/$PLATFORM/link.log"; then
     echo "LINK FAILED - undefined symbols by count:"
     grep -oP "undefined reference to \`\K[^']+" "$SCRIPT_DIR/build/$PLATFORM/link.log" \
         | sort | uniq -c | sort -rn | head -50
@@ -63,12 +67,12 @@ if ! $CXX $MACHDEP -specs="$SPECS" "$GATE"/*.o \
 fi
 
 if [ "$PLATFORM" = wiiu ]; then
-    elf2rpl "$OUT/silenthill.elf" "$OUT/silenthill.rpx" || exit 1
-    IMG="$OUT/silenthill.rpx"
+    elf2rpl "$OUT/$NAME.elf" "$OUT/$NAME.rpx" || exit 1
+    IMG="$OUT/$NAME.rpx"
 else
-    elf2dol "$OUT/silenthill.elf" "$OUT/silenthill.dol" || exit 1
-    IMG="$OUT/silenthill.dol"
+    elf2dol "$OUT/$NAME.elf" "$OUT/$NAME.dol" || exit 1
+    IMG="$OUT/$NAME.dol"
 fi
 echo
-powerpc-eabi-size "$OUT/silenthill.elf"
+powerpc-eabi-size "$OUT/$NAME.elf"
 ls -l "$IMG"

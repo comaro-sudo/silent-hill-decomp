@@ -22,7 +22,8 @@ LOG="$SCRIPT_DIR/build/$PLATFORM/gate.log"
 WARNLOG="$SCRIPT_DIR/build/$PLATFORM/gate_warnings.log"
 mkdir -p "$OUT"
 # Not incremental: a stale object whose source was renamed would keep linking.
-rm -f "$OUT"/*.o "$OUT"/*.err "$OUT"/*.warn
+# (INCREMENTAL=1 with a subtree argument recompiles just that subtree in place.)
+if [ -z "${INCREMENTAL:-}" ]; then rm -f "$OUT"/*.o "$OUT"/*.err "$OUT"/*.warn; fi
 : > "$LOG"; : > "$WARNLOG"
 collect_srcs() {
     local root="${1:-}"
@@ -50,7 +51,9 @@ collect_srcs() {
     if [ "$PLATFORM" = wiiu ]; then
         # platform-neutral ogc_port files + the Wii U HAL
         for f in main_ogc fs_ogc sh_log_ogc stubs_ogc autoplay; do echo "$SCRIPT_DIR/src/$f.c"; done
-        find "$DECOMP/wiiu_port/src" -name '*.c'
+        # exactly one of the two renderers (WIIU_RENDERER, ogc_flags.sh)
+        if [ "$WIIU_RENDERER" = gx2 ]; then rx=gpu_sdl_wiiu.c; else rx=gpu_gx2.c; fi
+        find "$DECOMP/wiiu_port/src" -name '*.c' ! -name "$rx"
     else
         find "$SCRIPT_DIR/src" -name '*.c'
     fi
@@ -82,6 +85,14 @@ while IFS= read -r f; do
     esac
     printf '%s\t%s\t%s\n' "$f" "$obj" "$extra" >> "$JOBFILE"
 done < <(collect_srcs "${1:-}")
+
+# Wii U: only the selected renderer builds (also with a subtree argument), and
+# the other one's object from an earlier build must not link.
+if [ "$PLATFORM" = wiiu ]; then
+    if [ "$WIIU_RENDERER" = gx2 ]; then rx=gpu_sdl_wiiu; else rx=gpu_gx2; fi
+    grep -v "/wiiu_port/src/$rx\.c	" "$JOBFILE" > "$JOBFILE.tmp"; mv "$JOBFILE.tmp" "$JOBFILE"
+    rm -f "$OUT/wiiu_port_src_$rx.o" "$OUT/wiiu_port_src_$rx.o.err" "$OUT/wiiu_port_src_$rx.o.warn"
+fi
 
 # shellcheck disable=SC2016
 xargs -P "${JOBS:-$(nproc)}" -d '\n' -I{} bash -c 'IFS=$'"'"'\t'"'"' read -r f o e <<< "{}"; compile_one "$f" "$o" "$e"' < "$JOBFILE"
