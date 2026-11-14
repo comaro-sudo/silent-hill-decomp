@@ -43,7 +43,13 @@ void xbox_log(const char* fmt, ...)
 #define SPU_VOICES      24
 #define OUT_HZ          48000          /* AC97/DirectSound output rate */
 #define SRC_HZ          44100          /* PSX VAG native rate at pitch=4096 */
+#if defined(SH_GC_PORT)
+/* GameCube: ~5.8 MB of heap is all that is left after the 12 MB BSS; 24 x 64K
+ * samples (3 MB) starved the texture cache. 16K samples = 0.37 s per voice. */
+#define VOICE_PCM_CAP   0x4000
+#else
 #define VOICE_PCM_CAP   0x10000        /* max decoded samples per voice (~1.49s) */
+#endif
 #define SPU_ALLOC_BASE  0x1010         /* PSX reserves 0..0x100F */
 
 static unsigned char  s_spuRam[SPU_RAM_SIZE];
