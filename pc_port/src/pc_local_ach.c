@@ -147,6 +147,14 @@ static int s_ToastOnPad = -1;
 int Pc_LocalAch_PadToast(void) { return s_ToastOnPad; }
 #endif
 
+/* Test harness (autoplay TOAST): show achievement idx's pop-up without
+ * unlocking or saving anything. */
+void Pc_LocalAch_TestToast(int idx)
+{
+    if (idx >= 0 && idx < ACH_COUNT && s_ToastCount < TOAST_QUEUE_MAX)
+        s_ToastQueue[s_ToastCount++] = idx;
+}
+
 static void Ach_Unlock(int idx)
 {
     if (idx < 0 || idx >= ACH_COUNT || s_Unlocked[idx])

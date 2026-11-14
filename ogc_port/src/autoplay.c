@@ -31,7 +31,13 @@
  *   <frame> <BUTTON> [holdFrames]      e.g.  "1500 START 10"
  *   every <first> <last> <period> <BUTTON> [hold]   repeat a press
  * BUTTON: CROSS CIRCLE SQUARE TRIANGLE START SELECT UP DOWN LEFT RIGHT
- * L1 R1 L2 R2. Frames count Pad_Poll calls. Absent file = no effect. */
+ * L1 R1 L2 R2, or QSAVE / QLOAD: queue the Options menu's Quick Save / Quick
+ * Load (opens the real save/load screen once in gameplay), so a test run can
+ * reach the memory-card code without walking to a save point. Frames count
+ * Pad_Poll calls. Absent file = no effect. */
+#define AUTO_QSAVE 100
+#define AUTO_QLOAD 101
+#define AUTO_TOAST 102   /* show achievement 0's pop-up, unlocking nothing */
 #define AUTO_MAX 512
 typedef struct { int first, last, period, bit, hold; } AutoKey;
 static AutoKey s_auto[AUTO_MAX];
@@ -44,7 +50,7 @@ static int Auto_Bit(const char* n)
         {"SELECT",PSX_SELECT},{"START",PSX_START},{"UP",PSX_UP},{"RIGHT",PSX_RIGHT},
         {"DOWN",PSX_DOWN},{"LEFT",PSX_LEFT},{"L2",PSX_L2},{"R2",PSX_R2},{"L1",PSX_L1},
         {"R1",PSX_R1},{"TRIANGLE",PSX_TRIANGLE},{"CIRCLE",PSX_CIRCLE},{"CROSS",PSX_CROSS},
-        {"SQUARE",PSX_SQUARE},
+        {"SQUARE",PSX_SQUARE},{"QSAVE",AUTO_QSAVE},{"QLOAD",AUTO_QLOAD},{"TOAST",AUTO_TOAST},
     };
     unsigned i;
     for (i = 0; i < sizeof(k) / sizeof(k[0]); i++)
@@ -111,6 +117,19 @@ void Autoplay_Apply(unsigned short* psx)
         int rel;
         if (s_autoFrame < k->first || s_autoFrame > k->last + k->hold) continue;
         rel = (s_autoFrame - k->first) % k->period;
+        if (k->bit >= AUTO_QSAVE) {
+            extern void Xbox_QuickSaveRequest(void);
+            extern void Xbox_QuickLoadRequest(void);
+            if (rel == 0 && s_autoFrame <= k->last) {
+                extern void Pc_LocalAch_TestToast(int idx);
+                SH_DBG("[PAD] autoplay: %s at frame %d",
+                       k->bit == AUTO_QSAVE ? "QSAVE" : k->bit == AUTO_QLOAD ? "QLOAD" : "TOAST", s_autoFrame);
+                if (k->bit == AUTO_QSAVE)      Xbox_QuickSaveRequest();
+                else if (k->bit == AUTO_QLOAD) Xbox_QuickLoadRequest();
+                else                           Pc_LocalAch_TestToast(0);
+            }
+            continue;
+        }
         if (rel < k->hold) *psx &= (unsigned short)~(1u << k->bit);
     }
 }

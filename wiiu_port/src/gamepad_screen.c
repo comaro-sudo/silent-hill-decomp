@@ -483,7 +483,7 @@ void GamepadScreen_Draw(SDL_Renderer* r)
     } else {
 #endif
         Dc_Color(r, 70, 70, 70, 255);
-        Text(r, (DRC_W - TextW("OPEN THE MAP TO SHOW IT HERE", 3)) / 2, 290, 3, "OPEN THE MAP TO SHOW IT HERE");
+        Text(r, (DRC_W - TextW("NO MAP OF THIS AREA YET", 3)) / 2, 260, 3, "NO MAP OF THIS AREA YET");
     }
     DrawAchToast(r);
     DrawTvButton(r, 0);
