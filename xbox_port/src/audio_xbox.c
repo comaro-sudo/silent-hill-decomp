@@ -415,12 +415,24 @@ static float RevProcess(int ch, float in)   /* one sample, one channel */
     return out;
 }
 
+/* Optional split-out of the pocket radio. When non-NULL, SPU voices 22/23
+ * (the reserved radio interference / static loops, see sd_call.c) are summed
+ * to a mono stream written here (g_AudioRadioMode 1 = removed from the main
+ * mix, 2 = also kept in it). Only the Wii U port sets this: it plays the
+ * stream through the GamePad speaker. */
+short* g_AudioRadioOut = NULL;
+int    g_AudioRadioMode = 0;
+int    g_AudioRadioPeak = 0;   /* max |sample| of the last render, for logging */
+
 void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
 {
     int f, i;
+    const int radioSplit = g_AudioRadioOut != NULL;
+    int radioPeak = 0;
 
     if (!s_inited) {
         memset(out, 0, (size_t)frames * 4);
+        if (g_AudioRadioOut) memset(g_AudioRadioOut, 0, (size_t)frames * 2);
         if (rear)   memset(rear,   0, (size_t)frames * 4);
         if (cenLfe) memset(cenLfe, 0, (size_t)frames * 4);
         return;
@@ -433,6 +445,7 @@ void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
         int   haflerL = 0, haflerR = 0;   /* pre-XA front, for the rear feed */
         int   pFL = 0, pFR = 0, pRL = 0, pRR = 0;  /* positional (azimuth-panned) accumulators */
         float revInL = 0.0f, revInR = 0.0f;        /* reverb bus send (from reverb-enabled voices) */
+        int   radL = 0, radR = 0;                  /* radio voices 22/23 (GamePad split) */
 
         for (i = 0; i < SPU_VOICES; i++) {
             Voice* v = &s_v[i];
@@ -465,7 +478,13 @@ void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
                 s = (s * v->envLevel) >> 15;
             }
 
-            if (rear && v->azimValid) {
+            if (radioSplit && (i == 22 || i == 23)) {
+                int vr = v->volR < 0 ? -v->volR : v->volR;
+                int dl = (s * v->volL) >> 14, dr = (s * vr) >> 14;
+                radL += dl;
+                radR += dr;
+                if (g_AudioRadioMode == 2) { L += dl; R += dr; }
+            } else if (rear && v->azimValid) {
                 /* Positional (emitter azimuth): pan the voice around the 5.1
                  * field with its precomputed per-speaker gains. Kept OUT of the
                  * L/R Hafler source below so it is not double-fed to the rears. */
@@ -504,6 +523,15 @@ void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
             } else if ((int)v->pos >= v->pcmLen) {
                 v->active = 0;
             }
+        }
+
+        if (radioSplit) {
+            int m = (int)((((long long)(radL + radR) >> 1) * ((s_masterL + s_masterR) >> 1)) >> 14);
+            if (m > 32767)  m = 32767;
+            if (m < -32768) m = -32768;
+            g_AudioRadioOut[f] = (short)m;
+            if (m < 0) m = -m;
+            if (m > radioPeak) radioPeak = m;
         }
 
         /* XA stream (voices / streamed cutscene audio) joins the voice sum.
@@ -596,6 +624,7 @@ void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
         out[f * 2]     = (short)L;
         out[f * 2 + 1] = (short)R;
     }
+    g_AudioRadioPeak = radioPeak;
 }
 
 /* Legacy stereo entry point — the fallback path and PrimeBuffer-era callers. */
