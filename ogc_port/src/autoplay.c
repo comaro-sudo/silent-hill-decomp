@@ -38,6 +38,7 @@
 #define AUTO_QSAVE 100
 #define AUTO_QLOAD 101
 #define AUTO_TOAST 102   /* show achievement 0's pop-up, unlocking nothing */
+#define AUTO_OFFTV 103   /* Wii U: toggle Off-TV play, as tapping PAD/TV does */
 #define AUTO_MAX 512
 typedef struct { int first, last, period, bit, hold; } AutoKey;
 static AutoKey s_auto[AUTO_MAX];
@@ -50,7 +51,7 @@ static int Auto_Bit(const char* n)
         {"SELECT",PSX_SELECT},{"START",PSX_START},{"UP",PSX_UP},{"RIGHT",PSX_RIGHT},
         {"DOWN",PSX_DOWN},{"LEFT",PSX_LEFT},{"L2",PSX_L2},{"R2",PSX_R2},{"L1",PSX_L1},
         {"R1",PSX_R1},{"TRIANGLE",PSX_TRIANGLE},{"CIRCLE",PSX_CIRCLE},{"CROSS",PSX_CROSS},
-        {"SQUARE",PSX_SQUARE},{"QSAVE",AUTO_QSAVE},{"QLOAD",AUTO_QLOAD},{"TOAST",AUTO_TOAST},
+        {"SQUARE",PSX_SQUARE},{"QSAVE",AUTO_QSAVE},{"QLOAD",AUTO_QLOAD},{"TOAST",AUTO_TOAST},{"OFFTV",AUTO_OFFTV},
     };
     unsigned i;
     for (i = 0; i < sizeof(k) / sizeof(k[0]); i++)
@@ -123,10 +124,14 @@ void Autoplay_Apply(unsigned short* psx)
             if (rel == 0 && s_autoFrame <= k->last) {
                 extern void Pc_LocalAch_TestToast(int idx);
                 SH_DBG("[PAD] autoplay: %s at frame %d",
-                       k->bit == AUTO_QSAVE ? "QSAVE" : k->bit == AUTO_QLOAD ? "QLOAD" : "TOAST", s_autoFrame);
+                       k->bit == AUTO_QSAVE ? "QSAVE" : k->bit == AUTO_QLOAD ? "QLOAD" :
+                       k->bit == AUTO_TOAST ? "TOAST" : "OFFTV", s_autoFrame);
                 if (k->bit == AUTO_QSAVE)      Xbox_QuickSaveRequest();
                 else if (k->bit == AUTO_QLOAD) Xbox_QuickLoadRequest();
-                else                           Pc_LocalAch_TestToast(0);
+                else if (k->bit == AUTO_TOAST) Pc_LocalAch_TestToast(0);
+#if defined(SH_WIIU_PORT)
+                else { extern void GamepadScreen_RequestOffTvToggle(void); GamepadScreen_RequestOffTvToggle(); }
+#endif
             }
             continue;
         }

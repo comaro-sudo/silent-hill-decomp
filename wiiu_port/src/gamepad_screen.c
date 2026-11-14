@@ -193,6 +193,9 @@ void GamepadScreen_Touch(int x, int y)
 
 int GamepadScreen_OffTv(void) { return s_offTvNow; }
 
+/* Test harness (autoplay OFFTV): the same request a tap on PAD/TV makes. */
+void GamepadScreen_RequestOffTvToggle(void) { s_offTvRequest = 1; }
+
 int GamepadScreen_TakeOffTvToggle(void)
 {
     const int r = s_offTvRequest;
