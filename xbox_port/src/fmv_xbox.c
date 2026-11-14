@@ -606,6 +606,13 @@ int FMV_Play(int file_idx, int max_frames)
     int   haveBase  = 0;
     int   table_idx = file_idx - FIRST_XA_FILE_IDX;
 
+#if defined(SH_GC_PORT)
+    /* 24 MB console: a movie needs ~1.3 MB of decode/texture buffers that are
+     * never freed, and the chunk-buffer pool then no longer fits (in-game
+     * allocations all failed). Skip movies, as if the player had pressed skip. */
+    SH_DBG("[FMV] file_idx %d skipped (GameCube: no heap for the decoder)", file_idx);
+    return 0;
+#endif
     if (table_idx < 0 || table_idx >= (int)FMV_FILE_COUNT) {
         SH_DBG("[FMV] file_idx %d out of range (table_idx=%d)", file_idx, table_idx);
         return -1;

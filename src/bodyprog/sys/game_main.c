@@ -110,7 +110,13 @@ static s32 g_PrevVBlanks = 0;
  * arena is enlarged and the whole-map submit budget (bodyprog_80040B74.c) is
  * sized well under it — the old 1.2MB budget was throttling the draw set to ~19
  * chunks. 16MB fits ~400 chunks; normal play still uses <2MB. */
-#ifdef SH_XBOX_PORT
+#if defined(SH_GC_PORT)
+/* GameCube: ~8 MB of heap in total and two arenas are calloc'd, so 2 x 2 MB
+ * (the Xbox size) left nothing for the game's own allocations and every one of
+ * them failed (black screen from the title state on). The PSX's own budget is
+ * 128 KB per buffer; 384 KB leaves room for the larger PC prim structs. */
+#define PC_PKTBUF_SIZE (384 * 1024)
+#elif defined(SH_XBOX_PORT)
 /* Xbox: 2MB. TWO arenas are calloc'd (double-buffered), so PC's 16MB costs 32MB
  * of a 64MB console — it took free RAM at boot from ~33MB to 4.4MB, which left
  * the texture cache 0 of 96 slots and rendered the whole game untextured white.

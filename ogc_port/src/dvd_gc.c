@@ -110,6 +110,53 @@ static int EndsWithBin(const char* s)
            tolower((unsigned char)s[n - 2]) == 'i' && tolower((unsigned char)s[n - 1]) == 'n';
 }
 
+static int DvdUp(void)
+{
+    if (!s_dvdUp) {
+        DVD_Init();
+        s_dvdUp = 1;
+        SH_DBG("[GCDISC] DVD_Mount...");
+        SH_DBG("[GCDISC] DVD_Mount -> %d", (int)DVD_Mount());
+    }
+    if (!s_bounce)
+        s_bounce = (char*)memalign(32, BOUNCE_BYTES);
+    return s_bounce != NULL;
+}
+
+/* Reads a small root file (test scripts such as autoplay.txt) from the disc
+ * FST into buf (NUL terminated). Returns bytes read, 0 if absent. */
+int GcDisc_ReadSmallFile(const char* want, char* buf, int max)
+{
+    unsigned char* hdr;
+    unsigned char* fst;
+    u32 fstOff, fstSize, count, i;
+    int got = 0;
+
+    if (!DvdUp() || !(hdr = (unsigned char*)memalign(32, 0x460)))
+        return 0;
+    if (!DvdRead(hdr, 0x460, 0)) { free(hdr); return 0; }
+    fstOff = Be32(hdr + 0x424); fstSize = Be32(hdr + 0x428);
+    free(hdr);
+    if (!fstOff || fstSize < 12 || fstSize > (1u << 20)) return 0;
+    fst = (unsigned char*)memalign(32, (fstSize + 31) & ~31u);
+    if (!fst) return 0;
+    if (DvdRead(fst, (fstSize + 31) & ~31u, fstOff)) {
+        count = Be32(fst + 8);
+        for (i = 1; i < count && (size_t)(i + 1) * 12 <= fstSize; i++) {
+            const unsigned char* e = fst + (size_t)i * 12;
+            const char* nm = (const char*)fst + (size_t)count * 12 + (Be32(e) & 0xFFFFFF);
+            if (e[0] == 0 && strcmp(nm, want) == 0) {
+                u32 sz = Be32(e + 8);
+                if ((int)sz > max - 1) sz = (u32)(max - 1);
+                if (DvdReadAny(buf, sz, Be32(e + 4))) { buf[sz] = 0; got = (int)sz; }
+                break;
+            }
+        }
+    }
+    free(fst);
+    return got;
+}
+
 /* Largest *.bin in the FST -> s_base/s_size. */
 static int FindBin(void)
 {
@@ -160,15 +207,7 @@ static int FindBin(void)
 /* Returns a read/seek-only FILE* over the .bin on the DVD, or NULL. */
 FILE* GcDisc_OpenBin(void)
 {
-    if (!s_dvdUp) {
-        DVD_Init();
-        s_dvdUp = 1;
-        SH_DBG("[GCDISC] DVD_Mount...");
-        SH_DBG("[GCDISC] DVD_Mount -> %d", (int)DVD_Mount());
-    }
-    if (!s_bounce)
-        s_bounce = (char*)memalign(32, BOUNCE_BYTES);
-    if (!s_bounce)
+    if (!DvdUp())
         return NULL;
     s_base = s_size = s_pos = 0;
     if (!FindBin()) {

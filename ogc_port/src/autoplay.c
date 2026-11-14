@@ -60,6 +60,31 @@ static void Auto_Load(void)
     s_autoN = 0;
     snprintf(path, sizeof(path), "%sautoplay.txt", Sh360Fs_DataRoot());
     f = fopen(path, "r");
+#if defined(SH_GC_PORT)
+    if (!f) {   /* disc-only (Dolphin): autoplay.txt may sit in the disc root */
+        extern int GcDisc_ReadSmallFile(const char*, char*, int);
+        static char txt[8192];
+        char* p = txt;
+        if (!GcDisc_ReadSmallFile("autoplay.txt", txt, sizeof(txt))) return;
+        while (*p && s_autoN < AUTO_MAX) {
+            char* nl = strchr(p, 10);
+            AutoKey k = { 0, 0, 0, -1, 8 };
+            if (nl) *nl = 0;
+            if (sscanf(p, "every %d %d %d %31s %d", &k.first, &k.last, &k.period, name, &k.hold) >= 4) {
+            } else if (sscanf(p, "%d %31s %d", &k.first, name, &k.hold) >= 2) {
+                k.last = k.first; k.period = 1;
+            } else k.bit = -2;
+            if (k.bit != -2) {
+                k.bit = Auto_Bit(name);
+                if (k.bit >= 0 && k.period > 0) s_auto[s_autoN++] = k;
+            }
+            if (!nl) break;
+            p = nl + 1;
+        }
+        SH_DBG("[PAD] autoplay: %d entries from disc", s_autoN);
+        return;
+    }
+#endif
     if (!f) return;
     while (fgets(line, sizeof(line), f) && s_autoN < AUTO_MAX) {
         AutoKey k = { 0, 0, 0, -1, 8 };

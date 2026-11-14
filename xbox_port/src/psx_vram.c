@@ -643,7 +643,7 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
          * there, so the floor is what gets allocated: 24 slots (6 MB) left
          * nothing for the GX texture pages and every AllocTexMem failed. */
         enum { HEAP_RESERVE_KB = 8 * 1024, SLOT_KB = (TEX_DIM * TEX_DIM * 4) / 1024,
-               CACHE_MIN_SLOTS = 6 };
+               CACHE_MIN_SLOTS = 2 };
 #else
         enum { HEAP_RESERVE_KB = 8 * 1024, SLOT_KB = (TEX_DIM * TEX_DIM * 4) / 1024,
                CACHE_MIN_SLOTS = 24 };

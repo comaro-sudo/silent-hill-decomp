@@ -8,6 +8,9 @@
 #include <malloc.h>
 #include <unistd.h>
 
+#if !defined(SH_WIIU_PORT)
+#include <gccore.h>
+#endif
 #include "sh_log.h"
 
 extern const char* Sh360Fs_WritableRoot(void);   /* fs_ogc.c */
@@ -129,10 +132,38 @@ unsigned Xbox_MemUsedKB(void)
     return (unsigned)(mi.uordblks / 1024);
 }
 
+/* Free heap: newlib's free chunks plus the arena the sbrk has not claimed yet
+ * (libogc's sbrk takes memory from SYS_GetArena1Lo upwards). This used to
+ * return USED KB, so every "free < reserve" check in the shared code saw a
+ * full heap on GameCube. */
 unsigned Xbox_MemFreeKB(void)
 {
-    return Xbox_MemUsedKB();          /* name kept for the shared callers */
+    struct mallinfo mi = mallinfo();
+#if defined(SH_WIIU_PORT)
+    return (unsigned)(mi.fordblks / 1024);
+#else
+    unsigned long unclaimed = (unsigned long)SYS_GetArena1Hi() - (unsigned long)SYS_GetArena1Lo();
+    return (unsigned)((mi.fordblks + unclaimed) / 1024);
+#endif
 }
+
+#if !defined(SH_WIIU_PORT)
+/* Allocation trace: link with OGC_ALLOC_TRACE=1 (-Wl,--wrap=malloc,...) to log
+ * every request of 32 KB or more and every failure. Unused otherwise. */
+void* __real_malloc(size_t);
+void* __real_calloc(size_t, size_t);
+void* __real_memalign(size_t, size_t);
+static void AllocNote(const char* what, size_t n, void* p)
+{
+    if (!p || n >= 32768)
+        SH_DBG("[ALLOC] %s(%u) -> %p%s free=%uKB", what, (unsigned)n, p, p ? "" : " FAILED",
+               Xbox_MemFreeKB());
+}
+void* __wrap_malloc(size_t n) { void* p = __real_malloc(n); AllocNote("malloc", n, p); return p; }
+void* __wrap_calloc(size_t a, size_t b) { void* p = __real_calloc(a, b); AllocNote("calloc", a * b, p); return p; }
+void* __wrap_memalign(size_t a, size_t n) { void* p = __real_memalign(a, n); AllocNote("memalign", n, p); return p; }
+#endif
+
 
 void Xbox_MemReport(const char* tag)
 {

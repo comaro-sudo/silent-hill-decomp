@@ -64,7 +64,9 @@ dolphin -b -e silenthill.gcm
 
 `apploader_stub.c` implements only the apploader contract (init/main/close): it streams the DOL sections and returns the entry point. Dolphin boots it. Never commit the resulting image (it contains the game).
 
-GameCube memory: Dolphin's 24 MB leaves about 8 MB of heap after the 9.6 MB BSS (voice PCM cut to 16K samples, PSX-VRAM caches cut to the N64 sizes under `SH_GC_PORT`). There is no memory card in a disc-only setup, so saves are unavailable.
+GameCube memory: Dolphin's 24 MB leaves about 8 MB of heap after the 9.6 MB BSS. Under `SH_GC_PORT` the heap budget is: voice PCM cut to 16K samples, PSX-VRAM caches at the N64 sizes (4 index pages, ARGB cache floor of 2 slots), 384 KB packet arenas (x2) instead of 2 MB, a 16K-entry PGXP shadow table (384 KB, not 3 MB), 3 RGBA8 + 12 CI8 GX pages, at most 10 owned IPD chunk slots, and movies (FMV) are skipped because their decoder buffers (1.3 MB, never freed) no longer fit. With no writable volume the memory card is RAM-backed (a card that reports "not connected" wedges the KCET-logo card check forever), so saves last for the session only. Build with `OGC_ALLOC_TRACE=1` to log every 32 KB+ allocation and every failed one (`[ALLOC]` lines).
+
+Unattended Dolphin runs: `mkgcm.py --extra autoplay.txt=<file>` puts a script in the disc root, and `autoplay.c` reads it from the DVD when there is no SD volume.
 
 ### Controls
 

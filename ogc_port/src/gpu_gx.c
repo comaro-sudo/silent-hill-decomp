@@ -81,7 +81,7 @@ static int   s_horPlus = -1;
 /* ---- vertex pool ---------------------------------------------------------- */
 #if defined(SH_GC_PORT)
 #define GPU_POOL_VERTS 8192
-#define TEX_CACHE_N    6                /* direct-colour pages only (CI8 does the rest) */
+#define TEX_CACHE_N    3                /* direct-colour pages only (CI8 does the rest) */
 #else
 #define GPU_POOL_VERTS 24576
 #define TEX_CACHE_N    16               /* direct-colour pages only (CI8 does the rest) */
@@ -107,7 +107,7 @@ static TexEnt    s_cache[TEX_CACHE_N];
  * converted ~800 pages a frame in town -- the PSX reuses one page with many
  * CLUTs -- and that conversion was the frame time (Dolphin, 2026-11-11). */
 #if defined(SH_GC_PORT)
-#define CI_N 24                          /* 1.5 MB */
+#define CI_N 12                          /* 768 KB */
 #define TL_N 128
 #else
 #define CI_N 64                          /* 4 MB */

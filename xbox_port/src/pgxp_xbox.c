@@ -62,7 +62,11 @@ typedef struct {
     float     x, y, w;
 } ShadowEntry;
 
+#if defined(SH_GC_PORT)
+#define SHADOW_BITS 14                /* GameCube: 384 KB of an ~8 MB heap, not 3 MB */
+#else
 #define SHADOW_BITS 17
+#endif
 #define SHADOW_SIZE (1u << SHADOW_BITS)
 #define SHADOW_MASK (SHADOW_SIZE - 1u)
 

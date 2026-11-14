@@ -958,7 +958,7 @@ void Ipd_ActiveChunksClear(s_MapTerrain* map, s32 arg1) // 0x80042300
             }
             else
             {
-#if defined(SH_XBOX_PORT) && !defined(SH_XBOX360_PORT)
+#if (defined(SH_XBOX_PORT) && !defined(SH_XBOX360_PORT)) || defined(SH_GC_PORT)
                 /* (Not the 360: 512MB, and it preloads exteriors like the PC,
                  * which addresses every one of the 256 slots.) */
                 /* THE 64MB killer (2026-07-16 log): this eager calloc runs for
@@ -972,7 +972,13 @@ void Ipd_ActiveChunksClear(s_MapTerrain* map, s32 arg1) // 0x80042300
                  * the owned pool and leave the rest NULL — loads never target
                  * them (the engine already tolerates NULL here: that is
                  * exactly the state the failed callocs left it in). */
+#if defined(SH_GC_PORT)
+                /* GameCube: ~8 MB of heap in all; 24 slots x 88 KB (2 MB) left
+                 * nothing for models and textures. */
+                enum { XBOX_OWNED_SLOT_CAP = 10 };
+#else
                 enum { XBOX_OWNED_SLOT_CAP = 24 };
+#endif
                 if (i >= XBOX_OWNED_SLOT_CAP)
                 {
                     curChunk->ipdHdr = NULL;

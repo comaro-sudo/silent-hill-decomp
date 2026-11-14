@@ -241,6 +241,15 @@ static const char* mc_path_for_channel(int chan)
     return buf;
 }
 
+#if defined(SH_GC_PORT)
+/* GameCube booted from a disc image (Dolphin) has no writable volume at all. A
+ * card that reports "not connected" wedged the KCET-logo card check forever
+ * (the title never came up), so fall back to a RAM-backed card: the normal
+ * code paths run unchanged, saves just do not outlive the session. */
+static int            s_ramMode;
+static unsigned char* s_ramCard[2];
+#endif
+
 static FILE* mc_fopen(int chan, const char* mode)
 {
     return fopen(mc_path_for_channel(chan), mode);
@@ -304,6 +313,18 @@ static int mc_ensure_card(int chan)
     long  sz;
 
     if (!s_cardOk) return 0;
+#if defined(SH_GC_PORT)
+    if (s_ramMode) {
+        chan &= 1;
+        if (!s_ramCard[chan]) {
+            s_ramCard[chan] = (unsigned char*)malloc(MC_TOTAL_SIZE);
+            if (!s_ramCard[chan]) return 0;
+            mc_format_buffer(s_ramCard[chan]);
+            SH_DBG("[MCRD] formatted RAM card %d", chan);
+        }
+        return 1;
+    }
+#endif
 
     f = mc_fopen(chan, "rb");
     if (f) {
@@ -323,6 +344,13 @@ static int mc_read_at(int chan, long ofs, void* buf, int bytes)
     FILE*  f;
     size_t n;
 
+#if defined(SH_GC_PORT)
+    if (s_ramMode) {
+        if (!mc_ensure_card(chan) || ofs < 0 || ofs + bytes > MC_TOTAL_SIZE) return 0;
+        memcpy(buf, s_ramCard[chan & 1] + ofs, bytes);
+        return 1;
+    }
+#endif
     f = mc_fopen(chan, "rb");
     if (!f) return 0;
     if (fseek(f, ofs, SEEK_SET) != 0) { fclose(f); return 0; }
@@ -337,6 +365,13 @@ static int mc_write_at(int chan, long ofs, const void* buf, int bytes)
     FILE*  f;
     size_t n;
 
+#if defined(SH_GC_PORT)
+    if (s_ramMode) {
+        if (!mc_ensure_card(chan) || ofs < 0 || ofs + bytes > MC_TOTAL_SIZE) return 0;
+        memcpy(s_ramCard[chan & 1] + ofs, buf, bytes);
+        return 1;
+    }
+#endif
     f = mc_fopen(chan, "rb+");
     if (!f) {
         if (!mc_ensure_card(chan)) return 0;   /* card missing — auto-create */
@@ -420,6 +455,13 @@ static void mc_deliver_timeout(void)
 void Mcard_XboxInit(void)
 {
     s_cardOk = XboxFs_ResolveSaveDir(s_saveDir, sizeof(s_saveDir));
+#if defined(SH_GC_PORT)
+    if (!s_cardOk) {
+        s_cardOk = 1;
+        s_ramMode = 1;
+        SH_DBG("[MCRD] no writable volume: RAM-backed memory card (saves last this session only)");
+    }
+#endif
     if (!s_cardOk) {
         /* Never hang the FSM: with no storage every op delivers EvSpTIMOUT
          * and the game just shows "no memory card". */

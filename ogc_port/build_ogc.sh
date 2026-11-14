@@ -49,12 +49,14 @@ LIBPATH=""
 LOADADDR=""
 [ -n "$LIBDIR" ] && LOADADDR="-Wl,--section-start,.init=0x80200000"
 
+WRAP=""
+[ -n "${OGC_ALLOC_TRACE:-}" ] && WRAP="-Wl,--wrap=malloc,--wrap=calloc,--wrap=memalign"
 echo; echo "=== link ($(ls "$GATE"/*.o | wc -l) objects, $(echo $MAPLIBS | wc -w) map archives) ==="
 # --whole-archive for the maps: some map objects are reached only through data
 # tables and constructors, never by a symbol the linker is already chasing.
 if ! $CXX $MACHDEP -specs="$SPECS" "$GATE"/*.o \
         -Wl,--whole-archive $MAPLIBS -Wl,--no-whole-archive \
-        $LIBPATH $SYSLIBS $LOADADDR \
+        $LIBPATH $SYSLIBS $LOADADDR $WRAP \
         -Wl,-Map,"$OUT/$NAME.map" -o "$OUT/$NAME.elf" 2> "$SCRIPT_DIR/build/$PLATFORM/link.log"; then
     echo "LINK FAILED - undefined symbols by count:"
     grep -oP "undefined reference to \`\K[^']+" "$SCRIPT_DIR/build/$PLATFORM/link.log" \

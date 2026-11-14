@@ -21,6 +21,7 @@ def main():
     ap.add_argument('--id', default='GSHE69')
     ap.add_argument('--name', default='Silent Hill (PS1 port)')
     ap.add_argument('--filename', default='silenthill.bin')
+    ap.add_argument('--extra', action='append', default=[], help='NAME=PATH small file added to the disc root (e.g. autoplay.txt=...)')
     a = ap.parse_args()
 
     dol = open(a.dol, 'rb').read()
@@ -44,11 +45,27 @@ def main():
     app[app.index(mark):app.index(mark) + 4] = struct.pack('>I', dol_off)
 
     fst_off = align(dol_off + len(dol), 0x20)
-    name = a.filename.encode() + b'\0'
-    file_off = align(fst_off + 12 * 2 + len(name), 0x8000)
-    root = struct.pack('>III', 0x01000000, 0, 2)
-    ent = struct.pack('>III', 0x00000000, file_off, binsz)       # name offset 0
-    fst = root + ent + name
+    files = [(a.filename, None, binsz)]          # (name, path, size); the .bin is written last
+    for e in a.extra:
+        n, p = e.split('=', 1)
+        files.insert(len(files) - 1, (n, p, os.path.getsize(p)))
+    count = 1 + len(files)
+    names = b''
+    noff = []
+    for n, _, _ in files:
+        noff.append(len(names)); names += n.encode() + b'\0'
+    fst_hdr = 12 * count
+    cur = align(fst_off + fst_hdr + len(names), 0x20)
+    offs = []
+    for i, (n, p, sz) in enumerate(files):
+        if p is None:
+            cur = align(cur, 0x8000)
+        offs.append(cur); cur = align(cur + sz, 0x20)
+    file_off = offs[-1]
+    fst = struct.pack('>III', 0x01000000, 0, count)
+    for i, (n, p, sz) in enumerate(files):
+        fst += struct.pack('>III', noff[i], offs[i], sz)
+    fst += names
     fst_size = len(fst)
 
     boot = bytearray(0x440)
@@ -67,6 +84,9 @@ def main():
         f.seek(APP_OFF); f.write(app_hdr); f.write(app)
         f.seek(dol_off); f.write(dol)
         f.seek(fst_off); f.write(fst)
+        for i, (n, p, sz) in enumerate(files):
+            if p:
+                f.seek(offs[i]); f.write(open(p, 'rb').read())
         f.seek(file_off)
         with open(a.bin, 'rb') as b:
             shutil.copyfileobj(b, f, 1 << 20)
