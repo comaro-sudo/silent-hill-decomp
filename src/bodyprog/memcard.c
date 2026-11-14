@@ -787,7 +787,9 @@ void MemCard_Process_Load(s_MemCard_Process* statusPtr)
                 /* Modern difficulty: drops belong to the session, not the save. */
                 {
                     extern void Pc_Modern_DropsClear(void);
+                    extern void Pc_LocalAch_SessionReset(void);
                     Pc_Modern_DropsClear();
+                    Pc_LocalAch_SessionReset(); /* achievements: per-session counters */
                 }
 #endif
 #if defined(SH_XBOX360_PORT)

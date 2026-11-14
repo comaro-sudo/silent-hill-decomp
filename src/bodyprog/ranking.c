@@ -11,6 +11,7 @@
 
 #ifdef SH_PC_PORT
 #include "pc_modern.h"
+#include "pc_local_ach.h"
 #endif
 static const s32 pad_rodata_8002B2F8 = 0;
 
@@ -725,6 +726,11 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
         Gfx_StringSetColor(StringColorId_White);
         Gfx_StringSetPosition(0x18, 0x124);
         Gfx_StringDraw(D_8002B4C0[25], 0x14);
+
+#ifdef SH_PC_PORT
+        /* Local achievements: game clear, rank score (stars x 10). Unlocks are idempotent. */
+        Pc_LocalAch_OnGameClear(D_800C48B5);
+#endif
 
         if (D_800C48B5 >= 0x64)
         {

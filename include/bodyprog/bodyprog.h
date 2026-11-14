@@ -88,9 +88,16 @@ typedef enum _MainMenuEntry
     MainMenuEntry_Continue = 1,
     MainMenuEntry_Start    = 2,
     MainMenuEntry_Option   = 3,
+#ifdef SH_PC_PORT
+    MainMenuEntry_Achievements = 4, /** Port: local achievements list (pc_local_ach.c). */
+    MainMenuEntry_Extra        = 5,
+
+    MainMenuEntry_Count        = 6
+#else
     MainMenuEntry_Extra    = 4, /** @unused The extra options menu may have been accessible via the main menu. */
 
     MainMenuEntry_Count    = 5
+#endif
 } e_MainMenuEntry;
 
 typedef enum _MainMenuState

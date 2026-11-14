@@ -7,6 +7,7 @@
 #include "map_registry.h"
 #include "lang_text.h" /* menu translations + width for recentred entries */
 #include "pc_modern.h"
+#include "pc_local_ach.h"
 #endif
 
 #include <psyq/libetc.h>
@@ -51,6 +52,9 @@ static void func_8003BCF4(void);
 static s32 g_MainMenuState              = 0;
 static s32 g_MainMenu_SelectedEntry     = MainMenuEntry_Start;
 static u32 g_MainMenu_VisibleEntryFlags = (1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option);
+#ifdef SH_PC_PORT
+static s32 s_AchListOpen                = 0; /* ACHIEVEMENTS list (pc_local_ach.c) is showing */
+#endif
 
 // ========================================
 // GLOBAL VARIABLES
@@ -139,6 +143,18 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             g_MainMenuState++;
 
         case MenuState_Main:
+#ifdef SH_PC_PORT
+            /* ACHIEVEMENTS list open: it owns the pad; Circle returns to the menu. */
+            if (s_AchListOpen)
+            {
+                if (!Pc_LocalAchUi_Update())
+                {
+                    s_AchListOpen = 0;
+                    SD_Call(Sfx_MenuMove);
+                }
+                break;
+            }
+#endif
             if (playInGameDemo)
             {
                 GameBoot_GameStartup();
@@ -184,6 +200,10 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             /* Repurpose the unused Extra slot as "EXIT" (quit to dashboard) — a
              * console has no window-close, so give the main menu a real quit. */
             g_MainMenu_VisibleEntryFlags |= (1 << MainMenuEntry_Extra);
+#endif
+
+#ifdef SH_PC_PORT
+            g_MainMenu_VisibleEntryFlags |= (1 << MainMenuEntry_Achievements); /* local achievements, always available */
 #endif
 
             g_MainMenu_VisibleEntryFlags |= g_MainMenu_VisibleEntryFlags << MainMenuEntry_Count;
@@ -238,6 +258,16 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             }
 #endif
 
+#ifdef SH_PC_PORT
+            if ((g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter) &&
+                g_MainMenu_SelectedEntry == MainMenuEntry_Achievements)
+            {
+                s_AchListOpen = 1;
+                Pc_LocalAchUi_Open();
+                SD_Call(Sfx_MenuConfirm);
+            }
+            else
+#endif
             if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
             {
                 g_GameWork.gameState = GameState_MainMenu;
@@ -526,6 +556,13 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
         if (g_MainMenuState < 3)
         {
+#ifdef SH_PC_PORT
+            if (s_AchListOpen)
+            {
+                Pc_LocalAchUi_Draw();
+            }
+            else
+#endif
             MainMenu_MainTextDraw();
 #ifdef SH_PC_PORT
             { extern void Pc_MouseCursor_Draw(void); Pc_MouseCursor_Draw(); }
@@ -578,6 +615,9 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
         "CONTINUE",
         "START",
         "OPTION",
+#ifdef SH_PC_PORT
+        "ACHIEVEMENTS", /* port slot, before EXIT/EXTRA (e_MainMenuEntry) */
+#endif
 #ifdef SH_XBOX_PORT
         "EXIT"  /* Xbox: repurposed Extra slot -> quit to dashboard */
 #else
@@ -585,6 +625,9 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
 #endif
     };
     static const u8 STR_OFFSETS_X[] = { 29, 50, 32, 39,
+#ifdef SH_PC_PORT
+        68, /* ACHIEVEMENTS */
+#endif
 #ifdef SH_XBOX_PORT
         24  /* EXIT: X = COLUMN_POS_X - offset, so smaller = further right. "EXIT"
              * is 4 chars (narrow 'I'); the 33 tuned for the 5-char "EXTRA" sat it
