@@ -55,8 +55,9 @@ static const u8 PICKUP_ITEM[6]  = { InvItemId_FirstAidKit, InvItemId_HealthDrink
                                     InvItemId_HandgunBullets, InvItemId_RifleShells, InvItemId_ShotgunShells };
 static const u8 PICKUP_COUNT[6] = { DEFAULT_PICKUP_ITEM_COUNT, DEFAULT_PICKUP_ITEM_COUNT, DEFAULT_PICKUP_ITEM_COUNT,
                                     HANDGUN_AMMO_PICKUP_ITEM_COUNT, RIFLE_AMMO_PICKUP_ITEM_COUNT, SHOTGUN_AMMO_PICKUP_ITEM_COUNT };
-/* Weights from the plan: bullets 3, shells 2, rifle 2, drink 3, kit 1, ampoule 1. */
-static const u8 PICKUP_WEIGHT[6] = { 1, 3, 1, 3, 2, 2 };
+/* Ammunition only (revision 2026-11-13): bullets 3, rifle 2, shells 2; no
+ * health items. With no gun yet nothing qualifies and nothing drops. */
+static const u8 PICKUP_WEIGHT[6] = { 0, 0, 0, 3, 2, 2 };
 
 /* Bosses never count as kills; their death restores health instead. */
 static int Modern_IsBoss(s32 charaId)
@@ -120,9 +121,10 @@ static void Modern_ModelsSync(void)
 
 static void Modern_GiveDirect(s32 pickupId)
 {
-    Inventory_AddSpecialItem(PICKUP_ITEM[pickupId], PICKUP_COUNT[pickupId] *
-                             ((pickupId >= CommonPickupItemId_HandgunBullets) ? Pc_Modern_AmmoMultMin(g_GameWork.config.extraBulletAdjust + 1)
-                                                                              : Pc_Modern_HealthItemCount(1)));
+    Inventory_AddSpecialItem(PICKUP_ITEM[pickupId],
+                             (pickupId >= CommonPickupItemId_HandgunBullets)
+                                 ? Pc_Modern_AmmoCount(PICKUP_COUNT[pickupId] * (g_GameWork.config.extraBulletAdjust + 1))
+                                 : Pc_Modern_HealthItemCount(PICKUP_COUNT[pickupId]));
 }
 
 static void Modern_DropSpawn(const VECTOR3* at)

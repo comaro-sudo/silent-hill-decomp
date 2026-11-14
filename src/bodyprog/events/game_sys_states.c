@@ -1394,6 +1394,9 @@ void SysState_GameOver_Update(void) // 0x8003A52C
             {
                 g_GameWork.autosave.continueCount++;
             }
+#ifdef SH_PC_PORT
+            { extern void Pc_Modern_OnDeath(void); Pc_Modern_OnDeath(); }   /* Modern offer */
+#endif
 
             MainMenu_SelectedOptionIdxReset();
 
@@ -1488,6 +1491,18 @@ void SysState_GameOver_Update(void) // 0x8003A52C
             }
 #else
             g_SysWork.field_28++;
+#endif
+
+#ifdef SH_PC_PORT
+            /* Two deaths within 10 minutes: offer Modern under GAME OVER
+             * (pc_modern.c). Holds this step until answered. */
+            {
+                extern int Pc_Modern_OfferUpdate(void);
+                if (Pc_Modern_OfferUpdate())
+                {
+                    break;
+                }
+            }
 #endif
 
             if ((g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter |

@@ -24,8 +24,10 @@ int  Pc_Modern_IsActive(void);
 void Pc_Modern_SetActive(int on);
 
 /* Pickup scaling, used by Event_CommonItemTake. */
-int  Pc_Modern_AmmoMultMin(int mult);      /* returns mult raised to at least 2 on Modern */
-int  Pc_Modern_HealthItemCount(int count); /* returns count * 2 on Modern */
+int  Pc_Modern_AmmoCount(int count);      /* ammo pickup count: 1.5x on Modern, rounded */
+int  Pc_Modern_HealthItemCount(int count); /* health item count: as on Normal */
+void Pc_Modern_OnDeath(void);              /* game over: track deaths for the Modern offer */
+int  Pc_Modern_OfferUpdate(void);          /* game over screen: 1 while the offer holds it */
 
 /* Once per frame in every game state (game_main.c). Regen and drops. */
 void Pc_Modern_Update(void);

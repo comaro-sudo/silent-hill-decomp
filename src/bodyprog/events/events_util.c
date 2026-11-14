@@ -1234,11 +1234,12 @@ void Event_CommonItemTake(u32 pickupType, e_EventFlag eventFlagIdx) // 0x800879F
     }
 
 #ifdef SH_PC_PORT
-    /* Modern difficulty: at least x2 ammo (like Easy) and x2 health items. */
-    ammoCountMult = Pc_Modern_AmmoMultMin(ammoCountMult);
+    /* Modern difficulty: 1.5x ammo; health items as on Normal. */
     #define MODERN_HEALTH_COUNT Pc_Modern_HealthItemCount(DEFAULT_PICKUP_ITEM_COUNT)
+    #define MODERN_AMMO(n)      Pc_Modern_AmmoCount(n)
 #else
     #define MODERN_HEALTH_COUNT DEFAULT_PICKUP_ITEM_COUNT
+    #define MODERN_AMMO(n)      (n)
 #endif
 
     // Handle item pickup.
@@ -1257,20 +1258,21 @@ void Event_CommonItemTake(u32 pickupType, e_EventFlag eventFlagIdx) // 0x800879F
             break;
 
         case CommonPickupItemId_HandgunBullets:
-            Event_ItemTake(InvItemId_HandgunBullets, ammoCountMult * HANDGUN_AMMO_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_HandgunAmmoSelect);
+            Event_ItemTake(InvItemId_HandgunBullets, MODERN_AMMO(ammoCountMult * HANDGUN_AMMO_PICKUP_ITEM_COUNT), eventFlagIdx, MapMsgIdx_HandgunAmmoSelect);
             break;
 
         case CommonPickupItemId_ShotgunShells:
-            Event_ItemTake(InvItemId_ShotgunShells, ammoCountMult * SHOTGUN_AMMO_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_ShotgunAmmoSelect);
+            Event_ItemTake(InvItemId_ShotgunShells, MODERN_AMMO(ammoCountMult * SHOTGUN_AMMO_PICKUP_ITEM_COUNT), eventFlagIdx, MapMsgIdx_ShotgunAmmoSelect);
             break;
 
         case CommonPickupItemId_RifleShells:
-            Event_ItemTake(InvItemId_RifleShells, ammoCountMult * RIFLE_AMMO_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_RifleAmmoSelect);
+            Event_ItemTake(InvItemId_RifleShells, MODERN_AMMO(ammoCountMult * RIFLE_AMMO_PICKUP_ITEM_COUNT), eventFlagIdx, MapMsgIdx_RifleAmmoSelect);
             break;
     }
 
     #undef EASY_DIFFICULTY_AMMO_COUNT_MULT_MIN
     #undef MODERN_HEALTH_COUNT
+    #undef MODERN_AMMO
 }
 
 void Event_PaperMapTake(s32 paperMapFlagIdx, e_EventFlag eventFlagIdx, s32 mapMsgIdx) // 0x80087AF4
