@@ -64,14 +64,14 @@ static s32 Ach_Difficulty(void)
     return Pc_Modern_IsActive() ? GameDifficulty_Easy : g_SavegamePtr->gameDifficulty;
 }
 
-static void Ach_Save(void)
+static int Ach_Write(const char* path)
 {
-    FILE* f = fopen(ACH_FILE_TMP, "w");
+    FILE* f = fopen(path, "w");
     int   i;
 
     if (!f)
     {
-        return;
+        return 0;
     }
     fprintf(f, "# Silent Hill local achievements: index unlock-time (unix seconds)\n");
     for (i = 0; i < ACH_COUNT; i++)
@@ -81,9 +81,24 @@ static void Ach_Save(void)
             fprintf(f, "%d %lld\n", i, s_Unlocked[i]);
         }
     }
-    fclose(f);
-    remove(ACH_FILE); /* rename() won't replace on Windows */
-    rename(ACH_FILE_TMP, ACH_FILE);
+    return fclose(f) == 0;
+}
+
+static void Ach_Save(void)
+{
+    if (Ach_Write(ACH_FILE_TMP))
+    {
+        remove(ACH_FILE); /* rename() won't replace on Windows */
+        if (rename(ACH_FILE_TMP, ACH_FILE) == 0)
+        {
+            return;
+        }
+    }
+    /* Android external storage (FUSE) left only the .tmp behind: write in place. */
+    if (Ach_Write(ACH_FILE))
+    {
+        remove(ACH_FILE_TMP);
+    }
 }
 
 void Pc_LocalAch_Init(void)
@@ -99,6 +114,10 @@ void Pc_LocalAch_Init(void)
     memset(s_Unlocked, 0, sizeof(s_Unlocked));
 
     f = fopen(ACH_FILE, "r");
+    if (!f)
+    {
+        f = fopen(ACH_FILE_TMP, "r"); /* a save interrupted before the rename */
+    }
     if (!f)
     {
         return;
@@ -124,6 +143,11 @@ static void Ach_Unlock(int idx)
     {
         return;
     }
+    /* The title's attract demo plays a real savegame: it earns nothing. */
+    if (g_SysWork.sysFlags & SysFlag_DemoActive)
+    {
+        return;
+    }
     s_Unlocked[idx] = (long long)time(NULL);
     Ach_Save();
 
@@ -146,7 +170,7 @@ void Pc_LocalAch_OnKill(void* charaPtr)
     int             i;
 
     (void)charaPtr;
-    if (g_SavegamePtr == NULL)
+    if (g_SavegamePtr == NULL || (g_SysWork.sysFlags & SysFlag_DemoActive))
     {
         return;
     }
