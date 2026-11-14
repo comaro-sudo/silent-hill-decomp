@@ -90,7 +90,11 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     s32         prevGameDifficultyIdx;
     s32         nextGameDifficultyIdx;
     e_GameState prevState;
+#ifdef SH_PC_PORT
+    static s32  newGameSelectedDifficultyIdx = 2; /* rows Easy, Modern, Normal, Hard: Normal */
+#else
     static s32  newGameSelectedDifficultyIdx = 1;
+#endif
     static s32  prevSavegameCount            = 0;
 
     func_80033548();
@@ -399,18 +403,14 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 {
                     int mapId = MapRegistry_FindByName(g_PcConfig.mapName);
                     if (mapId < 0) mapId = 0;
-                    /* Modern (index 3) is Normal underneath plus a save flag. */
+                    /* Menu rows on the port: Easy, Modern, Normal, Hard. Modern
+                     * is Normal underneath plus a save flag (pc_modern.c). */
+                    static const s8 ROW_DIFFICULTY[4] = {
+                        GameDifficulty_Easy, GameDifficulty_Normal, GameDifficulty_Normal, GameDifficulty_Hard
+                    };
                     Pc_Modern_DropsClear();
-                    if (newGameSelectedDifficultyIdx == 3)
-                    {
-                        GameBoot_SavegameInitialize(mapId, GameDifficulty_Normal);
-                        Pc_Modern_SetActive(1);
-                    }
-                    else
-                    {
-                        GameBoot_SavegameInitialize(mapId, newGameSelectedDifficultyIdx - 1);
-                        Pc_Modern_SetActive(0);
-                    }
+                    GameBoot_SavegameInitialize(mapId, ROW_DIFFICULTY[newGameSelectedDifficultyIdx & 3]);
+                    Pc_Modern_SetActive(newGameSelectedDifficultyIdx == 1);
 
                     /* Randomizer: start the run here, after the savegame wipe and
                      * before GameBoot_MapLoad, so its per-map hook sees a live run
@@ -654,17 +654,21 @@ static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
     #define COLUMN_POS_X                    158
     #define STR_OFFSET_Y                    20
 
+#ifdef SH_PC_PORT
+    /* Port order: Easy, Modern, Normal, Hard (Modern beside the easier end). */
+    static const char* DIFFICULTY_MENU_ENTRY_STRINGS[] = {
+        "EASY",
+        "MODERN",
+        "NORMAL",
+        "HARD"
+    };
+    static const u8 STR_OFFSETS_X[] = { 28, 43, 43, 30 };
+#else
     static const char* DIFFICULTY_MENU_ENTRY_STRINGS[] = {
         "EASY",
         "NORMAL",
-        "HARD",
-#ifdef SH_PC_PORT
-        "MODERN"
-#endif
+        "HARD"
     };
-#ifdef SH_PC_PORT
-    static const u8 STR_OFFSETS_X[] = { 28, 43, 30, 43 };
-#else
     static const u8 STR_OFFSETS_X[] = { 28, 43, 30 };
 #endif
 
