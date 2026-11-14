@@ -20,6 +20,7 @@
 #include "bodyprog/screen/screen_data.h" /* g_OtTags0, g_ActiveBufferIdx, g_VBlanks */
 #include "bodyprog/text/text_draw.h"
 #include "pc_modern.h"
+#include "sh_log.h"
 #include "fs_xbox360.h"                   /* Sh360Fs_DataRoot, Sh360Fs_Sync */
 
 typedef struct
@@ -153,6 +154,10 @@ static void Ach_Unlock(int idx)
     }
     s_Unlocked[idx] = (long long)time(NULL);
     Ach_Save();
+    SH_DBG("[ACH] unlock %d '%s' map=%d melee=%u(%02x/%02x) ranged=%u(%02x)", idx, ACH_DEFS[idx].title,
+           g_SavegamePtr ? (int)g_SavegamePtr->mapIdx : -1, func_8009146C(0),
+           g_SavegamePtr ? g_SavegamePtr->meleeKillCount : 0, g_SavegamePtr ? g_SavegamePtr->meleeKillCountB : 0,
+           func_8009146C(1), g_SavegamePtr ? g_SavegamePtr->rangedKillCount : 0);
 
     if (s_ToastCount < TOAST_QUEUE_MAX)
     {

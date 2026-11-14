@@ -75,7 +75,16 @@ void func_80037E78(s_SubCharacter* chara) // 0x80037E78
     s32 cond;
 
     // TODO: Strange `chara->headingAngle` access.
+#ifdef SH_PC_PORT
+    /* The PSX reads `flags` (0x3E) through a 32-bit load at `headingAngle`
+     * (0x3C): 0x600000 is flags bits 5-6 only on little-endian. Big-endian
+     * (360, GameCube, Wii, Wii U) tested headingAngle's bits instead and
+     * counted live zero-health characters as kills every frame (melee kill
+     * count 28 in the opening alley, Dolphin 2026-11-14). Same test, by name. */
+    if (chara->health <= Q12(0.0f) && (chara->flags & (CharaFlag_Damaged | CharaFlag_Dead)) == CharaFlag_Damaged)
+#else
     if (chara->health <= Q12(0.0f) && (*(s32*)&chara->headingAngle & 0x600000) == 0x200000)
+#endif
     {
         idx = chara->attackReceived;
         if (idx < 39) // TODO: What weapon attack?
