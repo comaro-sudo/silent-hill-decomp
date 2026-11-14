@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later */
+﻿/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * gamepad_screen.c - what the Wii U GamePad shows while the game is on the TV
  * (docs/plans/wii-u-port-plan.md, "GamePad features").
@@ -361,7 +361,7 @@ static int DrawLiveMap(void)
     const int top = STRIP_H + 6, dh = DRC_H - top;
     int   hx, hy, ang, dw, dx, i;
     unsigned ver;
-    float scale, winH, v0, sx, sy, ca, sa;
+    float winH, v0, sx, sy, ca, sa;
     static const float lx[3] = { 0.0f, -3.0f, 3.0f }, ly[3] = { -5.0f, 3.0f, 3.0f };
     float vx[3], vy[3];
 
@@ -376,25 +376,30 @@ static int DrawLiveMap(void)
 
     /* image pixels are 320x480 in map units whatever the decode size. The 480
      * rows are the map screen's interlaced lines of a 4:3 picture, so a row is
-     * half as tall as a column is wide: 2x across, 1x down. */
-    scale = 2.0f;
-    dw    = (int)(320 * scale);
-    dx    = (DRC_W - dw) / 2;
-    winH  = (float)dh;
-    v0    = (float)hy - winH / 2.0f;
-    if (v0 > 480.0f - winH) v0 = 480.0f - winH;
-    if (v0 < 0.0f) v0 = 0.0f;
-
-    Gx2Ui_LiveMap(dx, top, dw, dh, 0.0f, v0 * (float)s_liveH / 480.0f, (float)s_liveW,
-                  (v0 + winH) * (float)s_liveH / 480.0f);
-
-    sx = (float)dx + (float)hx * scale;
-    sy = (float)top + ((float)hy - v0);
+     * half as tall as a column is wide: 4x across, 2x down. The window follows
+     * Harry on both axes and stops at the map's edges. */
+    {
+        const float zx = 4.0f, zy = 2.0f;
+        const float winW = (float)DRC_W / zx;
+        float u0;
+        winH = (float)dh / zy;
+        u0 = (float)hx - winW / 2.0f;
+        if (u0 > 320.0f - winW) u0 = 320.0f - winW;
+        if (u0 < 0.0f) u0 = 0.0f;
+        v0 = (float)hy - winH / 2.0f;
+        if (v0 > 480.0f - winH) v0 = 480.0f - winH;
+        if (v0 < 0.0f) v0 = 0.0f;
+        dx = 0; dw = DRC_W;
+        Gx2Ui_LiveMap(dx, top, dw, dh, u0 * (float)s_liveW / 320.0f, v0 * (float)s_liveH / 480.0f,
+                      (u0 + winW) * (float)s_liveW / 320.0f, (v0 + winH) * (float)s_liveH / 480.0f);
+        sx = ((float)hx - u0) * zx;
+        sy = (float)top + ((float)hy - v0) * zy;
+    }
     ca = SDL_cosf((float)ang * (6.2831853f / 4096.0f));
     sa = SDL_sinf((float)ang * (6.2831853f / 4096.0f));
     for (i = 0; i < 3; i++) {
-        vx[i] = sx + (lx[i] * ca - ly[i] * sa) * 3.0f;
-        vy[i] = sy + (lx[i] * sa + ly[i] * ca) * 3.0f;
+        vx[i] = sx + (lx[i] * ca - ly[i] * sa) * 4.0f;
+        vy[i] = sy + (lx[i] * sa + ly[i] * ca) * 4.0f;
     }
     /* black edge, then the minimap's yellow */
     Gx2Ui_Color(0, 0, 0, 255);
