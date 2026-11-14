@@ -146,6 +146,11 @@ static void Ach_Unlock(int idx)
     {
         return;
     }
+    /* The title's attract demo plays a real savegame: it earns nothing. */
+    if (g_SysWork.sysFlags & SysFlag_DemoActive)
+    {
+        return;
+    }
     s_Unlocked[idx] = (long long)time(NULL);
     Ach_Save();
 
@@ -276,7 +281,7 @@ void Pc_LocalAch_OnKill(void* charaPtr)
     int             i;
 
     (void)charaPtr;
-    if (g_SavegamePtr == NULL)
+    if (g_SavegamePtr == NULL || (g_SysWork.sysFlags & SysFlag_DemoActive))
     {
         return;
     }
