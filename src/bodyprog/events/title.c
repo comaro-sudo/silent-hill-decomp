@@ -240,7 +240,13 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 extern int Pc_MouseCursor_MenuRowHover(int, int, int, unsigned int, int*);
                 extern int Pc_MouseCursor_Moved(void);
                 int mcClicked = 0;
-                int mcRow     = Pc_MouseCursor_MenuRowHover(184, 20, MainMenuEntry_Count,
+                int mcRow     = Pc_MouseCursor_MenuRowHover(
+#if defined(SH_OGC_PORT) || defined(SH_WIIU_PORT)
+                                  164, /* MainMenu_MainTextDraw's console row origin */
+#else
+                                  184,
+#endif
+                                  20, MainMenuEntry_Count,
                                                             g_MainMenu_VisibleEntryFlags, &mcClicked);
                 if (mcRow >= 0)
                 {
@@ -607,7 +613,14 @@ void func_8003B560(void) {} // 0x8003B560
 static void MainMenu_MainTextDraw(void) // 0x8003B568
 {
     #define COLUMN_POS_X 158
+#if defined(SH_OGC_PORT) || defined(SH_WIIU_PORT)
+    /* GameCube/Wii/Wii U: with ACHIEVEMENTS and EXIT the rows reach 284 and
+     * EXIT sat on the copyright line (Dolphin and Cemu, 2026-11-14); one row
+     * up puts it where the PC/Android build draws it. */
+    #define COLUMN_POS_Y 164
+#else
     #define COLUMN_POS_Y 184
+#endif
     #define STR_OFFSET_Y 20
 
     static const char* MAIN_MENU_ENTRY_STRINGS[] = {
