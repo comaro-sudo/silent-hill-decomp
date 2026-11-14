@@ -107,7 +107,7 @@ static TexEnt    s_cache[TEX_CACHE_N];
  * converted ~800 pages a frame in town -- the PSX reuses one page with many
  * CLUTs -- and that conversion was the frame time (Dolphin, 2026-11-11). */
 #if defined(SH_GC_PORT)
-#define CI_N 12                          /* 768 KB */
+#define CI_N 16                          /* 1 MB: matches psx_vram PAGE_N */
 #define TL_N 128
 #else
 #define CI_N 64                          /* 4 MB */

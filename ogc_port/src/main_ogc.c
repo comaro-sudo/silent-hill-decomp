@@ -150,6 +150,14 @@ int main(void)
 #if defined(SH_WIIU_PORT)
     { extern void WiiU_Boot(void); WiiU_Boot(); }   /* ProcUI first (pad_wiiu.c) */
 #endif
+#if defined(SH_GC_PORT)
+    /* Keep the top 64 KB of MEM1 out of the heap: a GX texture/TLUT fetch that
+     * runs past the last allocation must stay inside the 24 MB. Without it
+     * Dolphin itself crashed (access violation) on the first busy town frame
+     * once the packet arenas grew (2026-11-14). */
+    { extern void* SYS_GetArena1Hi(void); extern void SYS_SetArena1Hi(void*);
+      SYS_SetArena1Hi((char*)SYS_GetArena1Hi() - 64 * 1024); }
+#endif
     haveBin = Sh360Fs_Init();
     SH_DebugLogInit();
 #if defined(SH_WIIU_PORT)

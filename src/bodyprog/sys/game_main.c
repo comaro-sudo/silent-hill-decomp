@@ -115,7 +115,9 @@ static s32 g_PrevVBlanks = 0;
  * (the Xbox size) left nothing for the game's own allocations and every one of
  * them failed (black screen from the title state on). The PSX's own budget is
  * 128 KB per buffer; 384 KB leaves room for the larger PC prim structs. */
-#define PC_PKTBUF_SIZE (384 * 1024)
+/* 384 KB overflowed in town (high-water 401 KB, Dolphin 2026-11-14: Harry's
+ * back dropped out); 576 KB keeps ~40% headroom. */
+#define PC_PKTBUF_SIZE (576 * 1024)
 #elif defined(SH_XBOX_PORT)
 /* Xbox: 2MB. TWO arenas are calloc'd (double-buffered), so PC's 16MB costs 32MB
  * of a 64MB console — it took free RAM at boot from ~33MB to 4.4MB, which left
@@ -2278,6 +2280,26 @@ void MainLoop(void) // 0x80032EE0
                 }
                 if (!canaryOk) {
                 }
+#if defined(SH_GC_PORT)
+                /* GameCube runs small arenas: report the high-water mark and
+                 * any frame that ran past the end (heap corruption). */
+                {
+                    static ptrdiff_t s_PktHigh;
+                    int bad = 0;
+                    for (i = 0; i < PC_CANARY_SIZE; i++) {
+                        if (pktEnd0[i] != PC_CANARY_VAL || pktEnd1[i] != PC_CANARY_VAL) { bad = 1; break; }
+                    }
+                    if (pktUsed > s_PktHigh + 16 * 1024 || bad) {
+                        if (pktUsed > s_PktHigh) s_PktHigh = pktUsed;
+                        SH_DBG("[PKT] used=%dKB high=%dKB of %dKB%s", (int)(pktUsed / 1024),
+                               (int)(s_PktHigh / 1024), PC_PKTBUF_SIZE / 1024, bad ? " CANARY SMASHED" : "");
+                        if (bad) {
+                            memset(pktEnd0, PC_CANARY_VAL, PC_CANARY_SIZE);
+                            memset(pktEnd1, PC_CANARY_VAL, PC_CANARY_SIZE);
+                        }
+                    }
+                }
+#endif
             }
         }
 #endif
