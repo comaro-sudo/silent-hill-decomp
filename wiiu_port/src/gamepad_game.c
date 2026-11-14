@@ -33,6 +33,26 @@ int WiiU_ShowHealth(void)
     }
 }
 
+/* The equipped gun's loaded rounds and magazine size (15/15). 0 for melee
+ * weapons, nothing equipped, and the Hyper Blaster (no magazine). */
+int WiiU_WeaponAmmo(int* loaded, int* capacity)
+{
+    extern int Items_GunMaxLoadAmmo(int itemId);
+    const int id = (int)g_SavegamePtr->equippedWeapon;
+    int i, cap;
+    if (g_GameWork.gameState != GameState_InGame) return 0;
+    cap = Items_GunMaxLoadAmmo(id);
+    if (cap <= 0) return 0;
+    for (i = 0; i < INV_ITEM_COUNT_MAX; i++) {
+        if (g_SavegamePtr->items[i].id_0 == id) {
+            *loaded = g_SavegamePtr->items[i].count_1;
+            *capacity = cap;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int WiiU_InMapScreen(void)
 {
     return g_GameWork.gameState == GameState_PaperMapScreen ||

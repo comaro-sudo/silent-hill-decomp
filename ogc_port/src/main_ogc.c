@@ -179,6 +179,9 @@ int main(void)
     snprintf(cfgPath, sizeof(cfgPath), "%ssilenthill.cfg", Sh360Fs_DataRoot());
     SH_DBG("[CFG] config file: %s", cfgPath);
     g_PcConfig.disableCulling = -1;
+#if defined(SH_WIIU_PORT)
+    g_PcConfig.minimap = 0;              /* the GamePad shows the map instead */
+#endif
     PcConfig_Load(cfgPath);
     if (g_PcConfig.disableCulling < 0)
         g_PcConfig.disableCulling = (g_PcConfig.widescreenMode == 1) ? 1 : 0;

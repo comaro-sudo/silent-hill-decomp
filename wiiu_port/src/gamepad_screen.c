@@ -38,11 +38,12 @@ extern int WiiU_ShowHealth(void);       /* gamepad_game.c */
 extern int WiiU_HealthStage(void);
 extern int WiiU_PlayerHealthQ12(void);
 extern int WiiU_InMapScreen(void);
+extern int WiiU_WeaponAmmo(int* loaded, int* capacity);
 extern const char* Sh360Fs_DataRoot(void);
 
 #define DRC_W 854
 #define DRC_H 480
-#define STRIP_H 110
+#define STRIP_H 56
 #define TVBTN_X (DRC_W - 92)
 #define TVBTN_Y 8
 #define TVBTN_W 84
@@ -56,6 +57,7 @@ static SDL_Texture* s_mapTex;
 static int          s_haveMap;
 static int          s_hideHealth;
 static int          s_offTvRequest;
+static int          s_offTvNow;          /* which draw path ran last frame */
 static unsigned     s_frame;
 static float        s_phase;
 static int          s_sweepX;
@@ -82,6 +84,7 @@ static const unsigned char kFont[][7] = {
     /* 6 */ {0x06,0x08,0x10,0x1E,0x11,0x11,0x0E}, /* 7 */ {0x1F,0x01,0x02,0x04,0x08,0x08,0x08},
     /* 8 */ {0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E}, /* 9 */ {0x0E,0x11,0x11,0x0F,0x01,0x02,0x0C},
     /* - */ {0x00,0x00,0x00,0x1F,0x00,0x00,0x00}, /* . */ {0x00,0x00,0x00,0x00,0x00,0x00,0x04},
+    /* / */ {0x01,0x01,0x02,0x04,0x08,0x10,0x10},
 };
 
 static const unsigned char* Glyph(char c)
@@ -91,6 +94,7 @@ static const unsigned char* Glyph(char c)
     if (c >= '0' && c <= '9') return kFont[26 + c - '0'];
     if (c == '-') return kFont[36];
     if (c == '.') return kFont[37];
+    if (c == '/') return kFont[38];
     return NULL;
 }
 
@@ -103,6 +107,9 @@ extern void Gx2Ui_Fill(float x, float y, float w, float h);
 extern void Gx2Ui_Rect(int x, int y, int w, int h);
 extern void Gx2Ui_Line(int x0, int y0, int x1, int y1);
 extern void Gx2Ui_Map(int x, int y, int w, int h);
+extern int  Gx2Ui_LiveMapUpload(const unsigned* argb, int w, int h);
+extern void Gx2Ui_LiveMap(int dx, int dy, int dw, int dh, float u0, float v0, float u1, float v1);
+extern void Gx2Ui_Tri(float x0, float y0, float x1, float y1, float x2, float y2);
 static void Dc_Color(SDL_Renderer* r, int cr, int cg, int cb, int ca) { (void)r; Gx2Ui_Color(cr, cg, cb, ca); }
 static void Dc_Fill(SDL_Renderer* r, int x, int y, int w, int h) { (void)r; Gx2Ui_Fill((float)x, (float)y, (float)w, (float)h); }
 static void Dc_Rect(SDL_Renderer* r, int x, int y, int w, int h) { (void)r; Gx2Ui_Rect(x, y, w, h); }
@@ -183,6 +190,8 @@ void GamepadScreen_Touch(int x, int y)
     }
 }
 
+int GamepadScreen_OffTv(void) { return s_offTvNow; }
+
 int GamepadScreen_TakeOffTvToggle(void)
 {
     const int r = s_offTvRequest;
@@ -262,18 +271,20 @@ static void Polyline(SDL_Renderer* r, const int* px, const int* py, int n, int d
 
 static void DrawHealth(SDL_Renderer* r)
 {
-    static const char* const kLabel[4] = { "", "FINE", "CAUTION", "DANGER" };
+    /* No word when healthy; the status stays deliberately quiet (dim, thin). */
+    static const char* const kLabel[4] = { "", "", "CAUTION", "DANGER" };
     /* beats per second and sweep speed per stage, quicker when hurt */
     static const float kBps[4]   = { 1.0f, 1.0f, 1.5f, 2.3f };
     const int stage = WiiU_HealthStage();
     const int hq    = WiiU_PlayerHealthQ12();
-    const int x0 = 250, x1 = TVBTN_X - 16, mid = STRIP_H / 2 + 4, amp = 34;
+    const int x0 = 120, x1 = TVBTN_X - 150, mid = STRIP_H / 2, amp = 14;
     Uint8 cr, cg, cb;
     int i, steps;
     int px[DRC_W], py[DRC_W];
     int n = 0;
 
     StageColour(stage, hq, &cr, &cg, &cb);
+    cr = (Uint8)(cr * 5 / 10); cg = (Uint8)(cg * 5 / 10); cb = (Uint8)(cb * 5 / 10);
 
     /* advance the sweep: 4 px per frame, sample the beat at each new column */
     for (steps = 0; steps < 4; steps++) {
@@ -296,7 +307,7 @@ static void DrawHealth(SDL_Renderer* r)
     Dc_Line(r, x0, mid, x1, mid);
 
     Dc_Color(r, cr, cg, cb, 255);
-    Text(r, 20, mid - 14, 4, kLabel[stage]);
+    Text(r, 16, mid - 7, 2, kLabel[stage]);
     /* the trace, with a gap just ahead of the sweep like a monitor */
     for (i = x0; i < x1; i++) {
         if (i > s_sweepX && i < s_sweepX + 24) {
@@ -308,8 +319,17 @@ static void DrawHealth(SDL_Renderer* r)
         px[n] = i; py[n] = s_trace[i]; n++;
     }
     Polyline(r, px, py, n, 0);
-    /* draw it twice, offset, for a 2-pixel line */
-    Polyline(r, px, py, n, 1);
+
+    /* loaded / magazine of the equipped gun, as quiet as the trace */
+    {
+        int loaded, cap;
+        if (WiiU_WeaponAmmo(&loaded, &cap)) {
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%d/%d", loaded, cap);
+            Dc_Color(r, 150, 150, 150, 255);
+            Text(r, TVBTN_X - 24 - TextW(buf, 3), mid - 10, 3, buf);
+        }
+    }
 }
 
 static void DrawTvButton(SDL_Renderer* r, int offTv)
@@ -324,10 +344,99 @@ static void DrawTvButton(SDL_Renderer* r, int offTv)
     Text(r, TVBTN_X + (TVBTN_W - TextW(offTv ? "TV" : "PAD", 3)) / 2, TVBTN_Y + 12, 3, offTv ? "TV" : "PAD");
 }
 
+#ifdef SH_WIIU_GX2
+/* Live map: the area's paper map with its markings (pc_minimap.c composes it),
+ * at 2x so its full width fits, scrolled to keep Harry in view, and his arrow
+ * on it. Replaces the TV minimap, which is off by default on Wii U. */
+extern int Pc_LiveMapState(int* x, int* y, int* ang, unsigned* ver);
+extern int Pc_LiveMapCompose(unsigned* dst, int cap, int* outW, int* outH);
+
+#define LIVE_CAP (320 * 480)
+static unsigned s_liveBuf[LIVE_CAP];
+static unsigned s_liveUploaded;
+static int      s_liveUpOk, s_liveW, s_liveH;
+
+static int DrawLiveMap(void)
+{
+    const int top = STRIP_H + 6, dh = DRC_H - top;
+    int   hx, hy, ang, dw, dx, i;
+    unsigned ver;
+    float scale, winH, v0, sx, sy, ca, sa;
+    static const float lx[3] = { 0.0f, -3.0f, 3.0f }, ly[3] = { -5.0f, 3.0f, 3.0f };
+    float vx[3], vy[3];
+
+    if (!Pc_LiveMapState(&hx, &hy, &ang, &ver)) return 0;
+    if (!s_liveUpOk || ver != s_liveUploaded) {
+        int w = 0, h = 0;
+        s_liveUpOk = Pc_LiveMapCompose(s_liveBuf, LIVE_CAP, &w, &h) && Gx2Ui_LiveMapUpload(s_liveBuf, w, h);
+        if (!s_liveUpOk) return 0;
+        if (!s_liveUploaded) SH_DBG("[DRC] live map up: %dx%d", w, h);
+        s_liveUploaded = ver; s_liveW = w; s_liveH = h;
+    }
+
+    /* image pixels are 320x480 in map units whatever the decode size. The 480
+     * rows are the map screen's interlaced lines of a 4:3 picture, so a row is
+     * half as tall as a column is wide: 2x across, 1x down. */
+    scale = 2.0f;
+    dw    = (int)(320 * scale);
+    dx    = (DRC_W - dw) / 2;
+    winH  = (float)dh;
+    v0    = (float)hy - winH / 2.0f;
+    if (v0 > 480.0f - winH) v0 = 480.0f - winH;
+    if (v0 < 0.0f) v0 = 0.0f;
+
+    Gx2Ui_LiveMap(dx, top, dw, dh, 0.0f, v0 * (float)s_liveH / 480.0f, (float)s_liveW,
+                  (v0 + winH) * (float)s_liveH / 480.0f);
+
+    sx = (float)dx + (float)hx * scale;
+    sy = (float)top + ((float)hy - v0);
+    ca = SDL_cosf((float)ang * (6.2831853f / 4096.0f));
+    sa = SDL_sinf((float)ang * (6.2831853f / 4096.0f));
+    for (i = 0; i < 3; i++) {
+        vx[i] = sx + (lx[i] * ca - ly[i] * sa) * 3.0f;
+        vy[i] = sy + (lx[i] * sa + ly[i] * ca) * 3.0f;
+    }
+    /* black edge, then the minimap's yellow */
+    Gx2Ui_Color(0, 0, 0, 255);
+    Gx2Ui_Tri(vx[0] + (vx[0] - sx) * 0.35f, vy[0] + (vy[0] - sy) * 0.35f,
+              vx[1] + (vx[1] - sx) * 0.35f, vy[1] + (vy[1] - sy) * 0.35f,
+              vx[2] + (vx[2] - sx) * 0.35f, vy[2] + (vy[2] - sy) * 0.35f);
+    Gx2Ui_Color(255, 216, 48, 255);
+    Gx2Ui_Tri(vx[0], vy[0], vx[1], vy[1], vx[2], vy[2]);
+    return 1;
+}
+#endif
+
+/* Achievement unlock, shown here instead of on the TV (pc_local_ach.c keeps the
+ * queue and the ~4 s timing). A band over the top of the map area. */
+extern int         Pc_LocalAch_PadToast(void);
+extern const char* Pc_LocalAch_Title(int idx);
+
+static void DrawAchToast(SDL_Renderer* r)
+{
+    const int idx = Pc_LocalAch_PadToast();
+    const int y = STRIP_H + 14, h = 74, x = 60, w = DRC_W - 120;
+    const char* t;
+    if (idx < 0) return;
+    t = Pc_LocalAch_Title(idx);
+#ifndef SH_WIIU_GX2
+    SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
+#endif
+    Dc_Color(r, 8, 8, 8, 235);
+    Dc_Fill(r, x, y, w, h);
+    Dc_Color(r, 200, 170, 60, 255);
+    Dc_Fill(r, x, y, w, 2);
+    Dc_Fill(r, x, y + h - 2, w, 2);
+    Text(r, x + 18, y + 14, 2, "ACHIEVEMENT UNLOCKED");
+    Dc_Color(r, 230, 230, 230, 255);
+    Text(r, x + 18, y + 40, 3, t);
+}
+
 /* Whole GamePad frame while the game is on the TV. */
 void GamepadScreen_Draw(SDL_Renderer* r)
 {
     s_frame++;
+    s_offTvNow = 0;
 #ifndef SH_WIIU_GX2
     SDL_RenderSetClipRect(r, NULL);
     SDL_SetRenderDrawColor(r, 0, 0, 0, 255);
@@ -338,11 +447,12 @@ void GamepadScreen_Draw(SDL_Renderer* r)
         DrawHealth(r);
     else if (!WiiU_ShowHealth()) {
         Dc_Color(r, 90, 90, 90, 255);
-        Text(r, (DRC_W - TextW("SILENT HILL", 5)) / 2, 30, 5, "SILENT HILL");
+        Text(r, (DRC_W - TextW("SILENT HILL", 3)) / 2, 18, 3, "SILENT HILL");
     }
 
 #ifdef SH_WIIU_GX2
-    if (s_haveMap) {
+    if (DrawLiveMap()) {
+    } else if (s_haveMap) {
         const int dh = DRC_H - STRIP_H - 6, dw = dh * 4 / 3;
         Gx2Ui_Map((DRC_W - dw) / 2, STRIP_H + 6, dw, dh);
     } else {
@@ -357,12 +467,14 @@ void GamepadScreen_Draw(SDL_Renderer* r)
         Dc_Color(r, 70, 70, 70, 255);
         Text(r, (DRC_W - TextW("OPEN THE MAP TO SHOW IT HERE", 3)) / 2, 290, 3, "OPEN THE MAP TO SHOW IT HERE");
     }
+    DrawAchToast(r);
     DrawTvButton(r, 0);
 }
 
 /* Off-TV: the game is on the GamePad; just the button over it. */
 void GamepadScreen_DrawOverlay(SDL_Renderer* r)
 {
+    s_offTvNow = 1;
 #ifndef SH_WIIU_GX2
     SDL_RenderSetClipRect(r, NULL);
 #endif

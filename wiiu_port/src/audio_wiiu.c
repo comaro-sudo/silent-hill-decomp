@@ -183,10 +183,14 @@ void Audio_XboxPump(void)
         if (g_AudioRadioOut && s_radioVoice) {
             RadioPush(g_AudioRadioOut, CHUNK_FRAMES);
             if (g_AudioRadioPeak > 0 || (++s_radioLogT % 4096) == 0) {
-                static int wasOn;
+                static int wasOn, burstMax;
+                if (g_AudioRadioPeak > burstMax) burstMax = g_AudioRadioPeak;
                 if ((g_AudioRadioPeak > 64) != wasOn) {
                     wasOn = g_AudioRadioPeak > 64;
-                    SH_DBG("[AUD] radio static %s on GamePad (peak %d)", wasOn ? "ON" : "OFF", g_AudioRadioPeak);
+                    /* OFF reports the loudest sample of the burst (of 32767) */
+                    if (wasOn) SH_DBG("[AUD] radio static ON on GamePad");
+                    else       SH_DBG("[AUD] radio static OFF on GamePad (burst peak %d)", burstMax);
+                    burstMax = 0;
                 }
             }
         }

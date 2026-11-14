@@ -287,6 +287,10 @@ static int InitDisplay(void)
 #define NBIG 3
 
 static GX2Texture s_idxTex, s_palTex, s_dirTex, s_bigTex[NBIG];
+#define LIVE_W 320                             /* paper-map image size */
+#define LIVE_H 480
+static GX2Texture s_liveTex;                   /* GamePad live map, CPU-composed */
+static int        s_liveOk;
 static GX2Sampler s_sampPoint, s_sampLinear;
 static unsigned char* s_idxMem; static int s_idxPitch;
 static unsigned*      s_palMem; static int s_palPitch;
@@ -334,6 +338,7 @@ static int TexturesCreate(void)
                    GX2_COMP_MAP(GX2_SQ_SEL_R, GX2_SQ_SEL_0, GX2_SQ_SEL_0, GX2_SQ_SEL_1))) return 0;
     if (!TexCreate(&s_palTex, PAGE, PAL_ROWS, GX2_SURFACE_FORMAT_UNORM_R8_G8_B8_A8, COMP_RGBA)) return 0;
     if (!TexCreate(&s_dirTex, DIR_DIM, DIR_DIM, GX2_SURFACE_FORMAT_UNORM_R8_G8_B8_A8, COMP_RGBA)) return 0;
+    s_liveOk = TexCreate(&s_liveTex, LIVE_W, LIVE_H, GX2_SURFACE_FORMAT_UNORM_R8_G8_B8_A8, COMP_RGBA);
     for (i = 0; i < NBIG; i++) {
         if (!TexCreate(&s_bigTex[i], 4, 4, GX2_SURFACE_FORMAT_UNORM_R8_G8_B8_A8, COMP_RGBA)) return 0;
         s_bigW[i] = s_bigH[i] = 4;
@@ -593,7 +598,7 @@ static void SetBigHw(int idx, int linear)
 {
     if (idx == s_hwBig && linear == s_hwBigLinear) return;
     s_hwBig = idx; s_hwBigLinear = linear;
-    GX2SetPixelTexture(idx < 0 ? &s_mapTex : &s_bigTex[idx], 3);
+    GX2SetPixelTexture(idx == -3 ? &s_liveTex : idx < 0 ? &s_mapTex : &s_bigTex[idx], 3);
     GX2SetPixelSampler(linear ? &s_sampLinear : &s_sampPoint, 3);
 }
 
@@ -1130,6 +1135,66 @@ void Gx2Ui_Map(int dx, int dy, int dw, int dh)
     SetBlendHw(0);
     VbDraw(first, 6);
     SetBigHw(s_bigCur, 0);
+}
+
+/* GamePad live map: a w x h ARGB image (the paper map with its markings,
+ * composed by pc_minimap.c). Uploaded only when it changes, so the drain that
+ * keeps the GPU off the old pixels is rare. */
+int Gx2Ui_LiveMapUpload(const unsigned* argb, int w, int h)
+{
+    unsigned* dst;
+    int x, y;
+    if (!s_liveOk || w > LIVE_W || h > LIVE_H) return 0;
+    UiFlush();
+    GpuDrain();
+    dst = (unsigned*)s_liveTex.surface.image;
+    for (y = 0; y < LIVE_H; y++)
+        for (x = 0; x < LIVE_W; x++)
+            dst[(size_t)y * s_liveTex.surface.pitch + x] =
+                (x < w && y < h) ? ToRGBA(argb[y * w + x]) : 0x000000FFu;
+    GX2Invalidate(GX2_INVALIDATE_MODE_CPU_TEXTURE, dst, (uint32_t)s_liveTex.surface.imageSize);
+    return 1;
+}
+
+/* Draw the image window (u0,v0)-(u1,v1), in image pixels, into dst. */
+void Gx2Ui_LiveMap(int dx, int dy, int dw, int dh, float u0, float v0, float u1, float v1)
+{
+    int first, i;
+    Vtx* q;
+    if (!s_liveOk) return;
+    UiFlush();
+    q = VbAlloc(6, &first);
+    if (!q) return;
+    u0 /= (float)LIVE_W; u1 /= (float)LIVE_W; v0 /= (float)LIVE_H; v1 /= (float)LIVE_H;
+    PutRect(q, (float)dx, (float)dy, (float)dw, (float)dh, 255, 255, 255, 255, DRC_W, DRC_H);
+    {
+        const float us[6] = { u0, u1, u0, u1, u1, u0 }, vs[6] = { v0, v0, v1, v0, v1, v1 };
+        for (i = 0; i < 6; i++) { q[i].uv[0] = us[i]; q[i].uv[1] = vs[i]; q[i].spec[3] = (unsigned char)(K_BIG * 85); }
+    }
+    SetBigHw(-3, 1);
+    SetBlendHw(0);
+    VbDraw(first, 6);
+    SetBigHw(s_bigCur, 0);
+}
+
+/* One filled triangle in GamePad pixels (Harry's arrow). */
+void Gx2Ui_Tri(float x0, float y0, float x1, float y1, float x2, float y2)
+{
+    const float px[3] = { x0, x1, x2 }, py[3] = { y0, y1, y2 };
+    Vtx* v;
+    int i;
+    if (s_uiN + 6 > UI_MAX) UiFlush();
+    v = &s_ui[s_uiN];
+    /* the batch draws 6-vertex groups: the second triangle repeats the first */
+    for (i = 0; i < 6; i++) {
+        const int k = i % 3;
+        memset(&v[i], 0, sizeof(Vtx));
+        v[i].clip[0] = px[k] / (float)DRC_W * 2.0f - 1.0f; v[i].clip[1] = 1.0f - py[k] / (float)DRC_H * 2.0f;
+        v[i].clip[2] = 0.5f; v[i].clip[3] = 1.0f;
+        v[i].col[0] = s_uiR; v[i].col[1] = s_uiG; v[i].col[2] = s_uiB; v[i].col[3] = s_uiA ? s_uiA : 1;
+        v[i].spec[3] = (unsigned char)(K_WHITE * 85);
+    }
+    s_uiN += 6;
 }
 
 /* Off-TV: the TV shows black, but must still be written and swapped. */

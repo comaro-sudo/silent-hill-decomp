@@ -136,11 +136,42 @@ unsigned Xbox_MemUsedKB(void)
  * (libogc's sbrk takes memory from SYS_GetArena1Lo upwards). This used to
  * return USED KB, so every "free < reserve" check in the shared code saw a
  * full heap on GameCube. */
+#if defined(SH_WIIU_PORT)
+/* wut hands newlib one big sbrk block carved from MEM2 at boot, and fordblks
+ * only counts what the break has already passed: it read 317KB on a ~1GB heap,
+ * so the resident texture pool reserved nothing (2026-11-14). wut keeps the
+ * block's end private, so find it once by probing the largest malloc. */
+static char* s_sbrkTop;
+
+static void WiiU_SbrkTopProbe(void)
+{
+    size_t lo = 0, hi = (size_t)1536 << 20;
+    while (hi - lo > ((size_t)1 << 20))
+    {
+        size_t mid = lo + (hi - lo) / 2;
+        void*  p   = malloc(mid);
+        if (p)
+        {
+            char* end = (char*)p + mid;
+            if (end > s_sbrkTop) s_sbrkTop = end;
+            free(p);
+            lo = mid;
+        }
+        else
+            hi = mid;
+    }
+    if (!s_sbrkTop) s_sbrkTop = (char*)sbrk(0);
+}
+#endif
+
 unsigned Xbox_MemFreeKB(void)
 {
     struct mallinfo mi = mallinfo();
 #if defined(SH_WIIU_PORT)
-    return (unsigned)(mi.fordblks / 1024);
+    char* brk;
+    if (!s_sbrkTop) WiiU_SbrkTopProbe();
+    brk = (char*)sbrk(0);
+    return (unsigned)((mi.fordblks + (brk < s_sbrkTop ? (size_t)(s_sbrkTop - brk) : 0)) / 1024);
 #else
     unsigned long unclaimed = (unsigned long)SYS_GetArena1Hi() - (unsigned long)SYS_GetArena1Lo();
     return (unsigned)((mi.fordblks + unclaimed) / 1024);

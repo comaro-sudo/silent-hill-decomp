@@ -88,6 +88,17 @@ static u8 g_Items_GunsMaxLoadAmmo[36] = {
     15, 6, 6, NO_VALUE
 };
 
+#ifdef SH_PC_PORT
+/* Magazine size of a gun by e_InvItemId, for the Wii U GamePad's ammo counter;
+ * 0 for anything without one. The table is static and indexed from 0x80. */
+int Items_GunMaxLoadAmmo(int itemId)
+{
+    int idx = itemId - 0x80;
+    if (idx < 0 || idx >= (int)sizeof(g_Items_GunsMaxLoadAmmo)) return 0;
+    return (g_Items_GunsMaxLoadAmmo[idx] == (u8)NO_VALUE) ? 0 : g_Items_GunsMaxLoadAmmo[idx];
+}
+#endif
+
 u32 D_800AD4C4 = 0;
 
 // Weapon attack data?

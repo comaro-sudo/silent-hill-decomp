@@ -31,6 +31,7 @@
 #include "hires_override.h"
 #ifdef SH_XBOX_PORT
 #include <stdlib.h>   /* malloc/free for the TIM decode below */
+#include <string.h>
 /* The minimap's CORE is the original game's system: it loads the area's paper-map
  * TIM through the normal Fs queue and draws it with PSX primitives. Everything
  * below is the PC custom-asset OVERRIDE layer (texture packs / hi-res
@@ -124,6 +125,7 @@ static unsigned char* Pc_LooseSlurp(const char* path, long* outSize)            
 #include "pc_loose_files.h"
 #endif
 #include "tex_pack.h"
+#include "tim_endian.h"
 #include "sh_log.h"
 #include <stdlib.h>
 
@@ -410,6 +412,10 @@ static void mm_map_load_tick(int idx)
 
         if (Fs_QueueGetLength() > 0) return;   /* poll only — never pump */
         s_pendKind = 0;
+        /* Read raw, not through Fs_QueuePostLoadTim, so it is still
+         * little-endian on PPC: magic 0x10000000 failed every decode below and
+         * the Wii U minimap stayed empty (2026-11-14). No-op on LE. */
+        if (s_rawBuf) Tim_SwapForBigEndian(s_rawBuf);
 
         if (kind == 1)
         {
@@ -605,6 +611,121 @@ static int mm_markers_build(int buf, const s_MmView* vw)
     return count;
 }
 
+#if defined(SH_WIIU_PORT)
+/* GamePad live map (wiiu_port/src/gamepad_screen.c). The TV minimap is off by
+ * default on Wii U, so the map loads and Harry's position are kept up here
+ * every gameplay frame regardless; the GamePad reads the cached result. */
+static int      s_liveHave;
+static int      s_liveX, s_liveY;   /* Harry, in paper-map image pixels */
+static int      s_liveAng;          /* paper-map-space heading, Q12 turn */
+static unsigned s_liveVer;          /* changes whenever the composed image would */
+
+static void mm_live_update(void)
+{
+    int      mi = (int)g_SavegamePtr->paperMapIdx;
+    s32      packed;
+    unsigned ver;
+
+    mm_map_load_tick(mi);
+
+    g_PcMapQueryAngle = g_SysWork.playerWork.player.rotation.vy;
+    g_PcMapQueryOnly  = 1;
+    packed = func_80067914((s32)mi, 0, 0, (u16)Q12(1.0f));
+    g_PcMapQueryOnly  = 0;
+
+    s_liveHave = s_mapReady && packed != 0 && mi >= 0 && mi < MM_PAPER_MAP_COUNT &&
+                 (!g_PcConfig.minimapRequireMap || HAS_MAP(mi));
+    if (packed != 0)
+    {
+        s_liveX   = (s32)(s16)(packed & 0xFFFF) + (MM_MAP_W / 2);
+        s_liveY   = (s32)(s16)((packed >> 16) & 0xFFFF) * 2 + (MM_MAP_H / 2);
+        s_liveAng = g_PcMapQueryAngle;
+    }
+
+    ver = (unsigned)(mi + 1) * 2654435761u ^ (unsigned)s_mapReady ^ ((unsigned)s_markReady << 1) ^
+          ((unsigned)(s_markFileLoaded + 1) << 2);
+    if (s_markReady && mi >= 0 && mi < MM_PAPER_MAP_COUNT)
+    {
+        const s_800AEDBC* tbl = &D_800AEDBC[mi];
+        int f;
+        for (f = tbl->field_8 + 1; f <= tbl->field_A; f++)
+            ver = ver * 33u + (unsigned)(Savegame_EventFlagGet(f) != 0);
+    }
+    s_liveVer = ver;
+}
+
+int Pc_LiveMapState(int* x, int* y, int* ang, unsigned* ver)
+{
+    if (g_GameWork.gameState != GameState_InGame) s_liveHave = 0;
+    *x = s_liveX; *y = s_liveY; *ang = s_liveAng; *ver = s_liveVer;
+    return s_liveHave;
+}
+
+/* The area's paper map with every learned marking on it, as the map screen
+ * shows it: each marking is the atlas art SUBTRACTED from the paper (the map
+ * screen's abr 2 tpage), which is what turns the cyan atlas red. */
+int Pc_LiveMapCompose(unsigned* dst, int cap, int* outW, int* outH)
+{
+    extern const unsigned* Xbox_PoolSlotLookup(int slot, int* outW, int* outH,
+                                               int* outNativeW, int* outNativeH);
+    const unsigned* map;
+    const unsigned* atlas;
+    int mw = 0, mh = 0, aw = 0, ah = 0, anw = 0, anh = 0;
+    int mi = (int)g_SavegamePtr->paperMapIdx;
+
+    map = Xbox_PoolSlotLookup(MM_POOL_SLOT, &mw, &mh, NULL, NULL);
+    if (!map || mw <= 0 || mh <= 0 || mw * mh > cap) return 0;
+    memcpy(dst, map, (size_t)mw * mh * 4);
+    *outW = mw; *outH = mh;
+
+    if (!s_markReady || mi < 0 || mi >= MM_PAPER_MAP_COUNT) return 1;
+    if (g_PaperMapMarkingFileIdxs[mi] == NO_VALUE || g_PaperMapMarkingFileIdxs[mi] != s_markFileLoaded) return 1;
+    atlas = Xbox_PoolSlotLookup(MM_MARK_SLOT, &aw, &ah, &anw, &anh);
+    if (!atlas || anw <= 0 || anh <= 0) return 1;
+
+    {
+        const s_800AEDBC* tbl = &D_800AEDBC[mi];
+        int n, i, j;
+        if (tbl->ptr_0 == NULL || tbl->ptr_4 == NULL) return 1;
+        n = (tbl->field_A - tbl->field_8) >> 1;
+        for (i = 0; i < n; i++)
+        {
+            s_800AE8A0_4 place = *(s_800AE8A0_4*)&tbl->ptr_4[i];
+            for (j = 0; j < 2; j++)
+            {
+                s_800AE8A0_0 spr;
+                int spriteIdx = j ? place.field_3 : place.field_2;
+                int col0, row0, xx, yy;
+                if (spriteIdx == 0) continue;
+                if (!Savegame_EventFlagGet(tbl->field_8 + (i * 2) + j + 1)) continue;
+                spr  = *(s_800AE8A0_0*)&tbl->ptr_0[spriteIdx];
+                col0 = ((place.field_0 * 2) + (MM_MAP_W / 2)) * mw / MM_MAP_W;
+                row0 = ((place.field_1 * 2) + (MM_MAP_H / 2)) * mh / MM_MAP_H;
+                for (yy = 0; yy < spr.field_3; yy++)
+                {
+                    int dy = row0 + yy, ay = (spr.field_1 + yy) * ah / anh;
+                    if (dy < 0 || dy >= mh || ay < 0 || ay >= ah) continue;
+                    for (xx = 0; xx < spr.field_2; xx++)
+                    {
+                        int      dx = col0 + xx, ax = (spr.field_0 + xx) * aw / anw;
+                        unsigned a, d, r, g, b;
+                        if (dx < 0 || dx >= mw || ax < 0 || ax >= aw) continue;
+                        a = atlas[ay * aw + ax];
+                        if (!(a >> 24)) continue;           /* transparent texel */
+                        d = dst[dy * mw + dx];
+                        r = ((d >> 16) & 0xFF) > ((a >> 16) & 0xFF) ? ((d >> 16) & 0xFF) - ((a >> 16) & 0xFF) : 0;
+                        g = ((d >> 8) & 0xFF) > ((a >> 8) & 0xFF) ? ((d >> 8) & 0xFF) - ((a >> 8) & 0xFF) : 0;
+                        b = (d & 0xFF) > (a & 0xFF) ? (d & 0xFF) - (a & 0xFF) : 0;
+                        dst[dy * mw + dx] = 0xFF000000u | (r << 16) | (g << 8) | b;
+                    }
+                }
+            }
+        }
+    }
+    return 1;
+}
+#endif
+
 void Pc_MinimapUpdate(void)
 {
     static POLY_F3  s_ring[2][MM_SEG];   /* circle: black outline + backing disc */
@@ -625,6 +746,10 @@ void Pc_MinimapUpdate(void)
     int       markCount = 0;
     GsOT_TAG* ot;
 
+#if defined(SH_WIIU_PORT)
+    if (g_GameWork.gameState == GameState_InGame && g_SysWork.sysState == SysState_Gameplay)
+        mm_live_update();
+#endif
     if (!g_PcConfig.minimap) return;
     if (g_GameWork.gameState != GameState_InGame ||
         g_SysWork.sysState   != SysState_Gameplay) return;
@@ -639,7 +764,9 @@ void Pc_MinimapUpdate(void)
     lum  = (128 * op) / 100;
     if (lum < 1) lum = 1;
 
+#if !defined(SH_WIIU_PORT)
     mm_map_load_tick((int)g_SavegamePtr->paperMapIdx);
+#endif
 
     buf   = g_ActiveBufferIdx;
     ot    = &g_OtTags0[buf][4];

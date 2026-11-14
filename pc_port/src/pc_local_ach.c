@@ -140,6 +140,12 @@ void Pc_LocalAch_Init(void)
 static int s_ToastQueue[TOAST_QUEUE_MAX];
 static int s_ToastCount;
 static int s_ToastTicks; /* > 0 while the head of the queue is on screen */
+#if defined(SH_WIIU_PORT)
+/* Wii U: the toast goes to the GamePad (gamepad_screen.c reads this), not the
+ * TV -- unless the game itself is on the GamePad (Off-TV play). */
+static int s_ToastOnPad = -1;
+int Pc_LocalAch_PadToast(void) { return s_ToastOnPad; }
+#endif
 
 static void Ach_Unlock(int idx)
 {
@@ -229,6 +235,9 @@ static void Ach_ToastDraw(void)
     char title[32];
     int  idx, tick;
 
+#if defined(SH_WIIU_PORT)
+    s_ToastOnPad = -1;
+#endif
     if (s_ToastCount == 0)
     {
         return;
@@ -244,12 +253,21 @@ static void Ach_ToastDraw(void)
     }
     idx = s_ToastQueue[0];
 
-    Ach_Fit(title, ACH_DEFS[idx].title, 26);
-    Ach_Box(26, 38, 268, 56, 8, 8, 8, 0, 7);          /* backing */
-    Ach_Box(26, 38, 268, 2, 200, 170, 60, 0, 6);      /* gold edge */
-    Ach_Box(26, 92, 268, 2, 200, 170, 60, 0, 6);
-    Ach_Text(40, 46, StringColorId_Gold, "ACHIEVEMENT UNLOCKED");
-    Ach_Text(40, 64, StringColorId_White, title);
+#if defined(SH_WIIU_PORT)
+    {
+        extern int GamepadScreen_OffTv(void);
+        if (!GamepadScreen_OffTv()) s_ToastOnPad = idx;
+    }
+    if (s_ToastOnPad < 0)
+#endif
+    {
+        Ach_Fit(title, ACH_DEFS[idx].title, 26);
+        Ach_Box(26, 38, 268, 56, 8, 8, 8, 0, 7);          /* backing */
+        Ach_Box(26, 38, 268, 2, 200, 170, 60, 0, 6);      /* gold edge */
+        Ach_Box(26, 92, 268, 2, 200, 170, 60, 0, 6);
+        Ach_Text(40, 46, StringColorId_Gold, "ACHIEVEMENT UNLOCKED");
+        Ach_Text(40, 64, StringColorId_White, title);
+    }
 
     tick = (g_VBlanks > 0) ? g_VBlanks : 1;
     s_ToastTicks -= tick;

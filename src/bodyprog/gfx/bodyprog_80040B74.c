@@ -2258,6 +2258,19 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
     }
 
     q19_12 _matDist = (g_PcConfig.preloadChunks && g_DebugCamEnabled && !g_DebugFogDisabled) ? Q12(35.0f) : Q12(0.0f);
+#if defined(SH_WIIU_PORT)
+    /* Wii U 16:9 Hor+: vanilla textures (and so draws) only the chunks within
+     * 16 m of the player/camera samples, a 2x2 block. The wider view showed
+     * the untextured neighbour as a black wedge (night-park attract demo,
+     * 2026-11-14). Every chunk is preloaded here and the resident pool has
+     * ~35 pages, so texture the next ring too (32 m). */
+    extern int g_PcWidescreenMode;
+    if (_matDist == Q12(0.0f) && g_PcConfig.preloadChunks && g_PcConfig.residentTextures &&
+        g_PcWidescreenMode)
+    {
+        _matDist = Q12(1.0f);
+    }
+#endif
 #else
     #define _matDist Q12(0.0f)
 #endif
