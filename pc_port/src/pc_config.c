@@ -75,6 +75,7 @@ s_PcConfig g_PcConfig = {
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
     .minimap                 = 1, /* square minimap (DEFAULTS.md) */
     .minimapCorner           = 3, /* bottom-right (DEFAULTS.md) */
+    .gamepadMapZoom          = 4, /* Wii U GamePad map */
     .minimapShape            = 1, /* deprecated; only feeds the old-config migration */
     .minimapScale            = 75.0f, /* DEFAULTS.md */
     .minimapRequireMap       = 1, /* the map only appears once Harry has found it */
@@ -745,6 +746,11 @@ void PcConfig_Load(const char* path)
             if (v < MINIMAP_SCALE_MIN) v = MINIMAP_SCALE_MIN;
             if (v > MINIMAP_SCALE_MAX) v = MINIMAP_SCALE_MAX;
             g_PcConfig.minimapScale = v;
+        }
+        else if (strcmp(key, "gamepad_map_zoom") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.gamepadMapZoom = (v < 1) ? 1 : ((v > 8) ? 8 : v);
         }
         else if (strcmp(key, "minimap_corner") == 0)
         {

@@ -2535,7 +2535,15 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
     {
         if (g_WorldEnvWork.isFogEnabled != 0)
         {
+#ifdef SH_PC_PORT
+            /* "fog colour is not black": the r,g,b bytes. The PSX word mask
+             * reads g,b,cd on big-endian, so night (black fog, cd set) took
+             * the coloured-fog path there and drew ground black. */
+            if (scratchData->field_380.s_0.field_C.r | scratchData->field_380.s_0.field_C.g |
+                scratchData->field_380.s_0.field_C.b)
+#else
             if (*(s32*)&scratchData->field_380.s_0.field_C & 0xFFFFFF)
+#endif
             {
                 poly3 = GsOUT_PACKET_P;
                 poly1  = poly3 + 1;

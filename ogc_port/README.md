@@ -13,7 +13,9 @@ Branch `ogc-port`, cut from `xbox360-port`. The 360 branch already makes the sha
 
 All three builds also define `SH_XBOX360_PORT SH_XBOX_PORT SH_PC_PORT`, layered the way the 360 build layers them: the big-endian fixes, the console memory behaviour and the PC game code.
 
-**Status (2026-11-11):** all three compile with no errors (210 files plus 42 map archives) and link. **None has been run yet**: no Dolphin or Cemu on the build machine, and no hardware test.
+**Status (2026-11-14):** all three build and run in emulators (Dolphin for GameCube/Wii, Cemu for Wii U). None has been tested on hardware.
+- **Wii U (GX2):** boots, plays the intro FMV to the end, the title, both attract demos and new-game play. The GamePad features below run in Cemu.
+- **GameCube:** title to the Cheryl chase at about 10–16 fps.
 
 ## Building
 
@@ -105,35 +107,26 @@ The PS1 primitive decoder and VRAM decoder (`xbox_port/src/gpu_xbox.c`, `psx_vra
 
 ## Known gaps
 
-- Nothing has been run. Before anything else, boot each build in Dolphin or Cemu and read the log on the SD card.
-- **GameCube memory:** the static image is about 17 MB of the 24 MB. Whether the game's runtime allocations fit in the remaining ~7 MB is untested.
-  - Candidates to trim: the voice PCM cache (3 MB, `audio_xbox.c`), the frame readback buffer (573 KB, unused on GX) and the unwind tables.
-- **Wii U renderer:**
-  - Affine texturing only (SDL vertices are 2D).
-  - Fog is added only to opaque primitives.
-  - No freeze-frame capture (the pause background).
-  - Native GX2 with real shaders needs a shader toolchain, which isn't installed.
-- **Video playback:** FMV playback (`fmv_xbox.c`) and XA audio are compiled in as on the 360 XDK build, but not tested here.
-- **Wii U GamePad:** see the next section. Two plan items are missing: radio static through the GamePad speaker, and a live map.
+- No hardware test on any of the three.
+- **GameCube memory:** runs in the 24 MB with 576 KB packet arenas and the top 64 KB of MEM1 kept out of the heap; chunks stream like the PSX. FMV is skipped and saves are RAM-only.
+- **Wii U SDL renderer** (`WIIU_RENDERER=sdl`, the fallback): affine texturing only, fog on opaque primitives only, no pause freeze-frame. The GX2 build has none of these limits.
 
 ## Wii U GamePad
 
 The TV and the GamePad are separate SDL windows (`SDL_WINDOW_WIIU_TV_ONLY` and `SDL_WINDOW_WIIU_GAMEPAD_ONLY`). The code is `wiiu_port/src/gamepad_screen.c`; the game values it reads come from `gamepad_game.c`.
 
-- **Health strip** along the top during play.
-  - Uses the inventory status display's thresholds and colours (`Gfx_Inventory_HealthStatusDraw`): DANGER below 10 (red), CAUTION below 50 (orange), FINE (yellow-green to green).
-  - An ECG trace whose beat speeds up as health drops. No number, as in the original.
+- **Health strip** along the top during play, deliberately quiet: a thin, dim ECG trace whose beat speeds up as health drops, and a small CAUTION or DANGER label at the inventory's thresholds (`Gfx_Inventory_HealthStatusDraw`). No word when healthy and no number, as in the original.
   - **Tap the strip to hide it**, for the original hidden-health experience. The choice is saved as an empty `gamepad_nohealth` file next to the disc image.
-- **Last-viewed map:**
-  - While the paper map screen is open, the TV image is copied to the GamePad every half second.
-  - The GamePad then keeps the map as last seen, with its markings and Harry's marker.
-  - It's a snapshot, not a live map: the game draws the map only inside the map screen.
+  - **Ammo** of the equipped gun on the right, loaded/magazine (`14/15`). Not shown for melee weapons or the Hyper Blaster.
+- **Live map** below the strip: the area's paper map with every marking the map screen would show (the game's own marking tables and event flags, composed in `pc_minimap.c`), and Harry's arrow. It follows Harry and appears once he has found that area's map.
+  - Zoom: **Options > GamePad Map Zoom**, 1×–8×, default 4× (`gamepad_map_zoom`). The zoom keeps the map's 4:3 proportions; it scrolls on whichever axes no longer fit.
+  - The TV minimap is off by default on Wii U for this reason; `minimap = 1` in the cfg turns it back on.
+  - Areas without a live map fall back to a snapshot taken while the map screen is open.
+- **Achievement pop-ups** show on the GamePad instead of the TV. In Off-TV play they show over the game as on other ports.
+- **Radio static** plays through the GamePad speaker only (`radio_gamepad`: 0 = TV, 1 = GamePad (default), 2 = both). The radio's two SPU voices are split off the software mix into an AX voice routed to the GamePad.
 - **Off-TV play:** tap **PAD** (top right) to move the game to the GamePad and black out the TV; tap **TV** to move it back.
   - The page texture cache is dropped on each switch, since textures belong to one renderer.
   - Vsync moves to the screen that shows the game.
 - **Rumble:** the game's own vibration calls drive the GamePad motor, including the PS1's low-health heartbeat. Strength becomes the density of the motor's on/off pattern.
 
-**Not done:**
-- **Radio static through the GamePad speaker.** The software SPU mixes everything into one stream. This needs the radio's SPU voices told apart from the rest, plus an AX voice routed to the GamePad only.
-- **Live map.** The paper map would have to be drawn outside the map screen.
-- **Uncertain:** the touch coordinates assume wut's calibrated point is in 1280×720 space. Check this on hardware.
+**Uncertain:** the touch coordinates assume wut's calibrated point is in 1280×720 space. Check this on hardware.

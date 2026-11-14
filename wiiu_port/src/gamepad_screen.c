@@ -39,6 +39,7 @@ extern int WiiU_HealthStage(void);
 extern int WiiU_PlayerHealthQ12(void);
 extern int WiiU_InMapScreen(void);
 extern int WiiU_WeaponAmmo(int* loaded, int* capacity);
+extern int WiiU_PadMapZoom(void);
 extern const char* Sh360Fs_DataRoot(void);
 
 #define DRC_W 854
@@ -379,21 +380,33 @@ static int DrawLiveMap(void)
      * half as tall as a column is wide: 4x across, 2x down. The window follows
      * Harry on both axes and stops at the map's edges. */
     {
-        const float zx = 4.0f, zy = 2.0f;
-        const float winW = (float)DRC_W / zx;
-        float u0;
-        winH = (float)dh / zy;
-        u0 = (float)hx - winW / 2.0f;
-        if (u0 > 320.0f - winW) u0 = 320.0f - winW;
-        if (u0 < 0.0f) u0 = 0.0f;
-        v0 = (float)hy - winH / 2.0f;
-        if (v0 > 480.0f - winH) v0 = 480.0f - winH;
-        if (v0 < 0.0f) v0 = 0.0f;
-        dx = 0; dw = DRC_W;
-        Gx2Ui_LiveMap(dx, top, dw, dh, u0 * (float)s_liveW / 320.0f, v0 * (float)s_liveH / 480.0f,
-                      (u0 + winW) * (float)s_liveW / 320.0f, (v0 + winH) * (float)s_liveH / 480.0f);
-        sx = ((float)hx - u0) * zx;
-        sy = (float)top + ((float)hy - v0) * zy;
+        /* zoom applies to the 4:3 picture: a row is half a column */
+        int         zoom = WiiU_PadMapZoom();
+        const float zx = (float)(zoom < 1 ? 1 : zoom), zy = zx / 2.0f;
+        float u0, u1, v1, dyf, dhf;
+        /* each axis: centre the map when it fits, else scroll with Harry */
+        if (320.0f * zx <= (float)DRC_W) {
+            u0 = 0.0f; u1 = 320.0f; dw = (int)(320.0f * zx); dx = (DRC_W - dw) / 2;
+        } else {
+            const float winW = (float)DRC_W / zx;
+            u0 = (float)hx - winW / 2.0f;
+            if (u0 > 320.0f - winW) u0 = 320.0f - winW;
+            if (u0 < 0.0f) u0 = 0.0f;
+            u1 = u0 + winW; dx = 0; dw = DRC_W;
+        }
+        if (480.0f * zy <= (float)dh) {
+            v0 = 0.0f; v1 = 480.0f; dhf = 480.0f * zy; dyf = (float)top + ((float)dh - dhf) / 2.0f;
+        } else {
+            winH = (float)dh / zy;
+            v0 = (float)hy - winH / 2.0f;
+            if (v0 > 480.0f - winH) v0 = 480.0f - winH;
+            if (v0 < 0.0f) v0 = 0.0f;
+            v1 = v0 + winH; dhf = (float)dh; dyf = (float)top;
+        }
+        Gx2Ui_LiveMap(dx, (int)dyf, dw, (int)dhf, u0 * (float)s_liveW / 320.0f, v0 * (float)s_liveH / 480.0f,
+                      u1 * (float)s_liveW / 320.0f, v1 * (float)s_liveH / 480.0f);
+        sx = (float)dx + ((float)hx - u0) * zx;
+        sy = dyf + ((float)hy - v0) * zy;
     }
     ca = SDL_cosf((float)ang * (6.2831853f / 4096.0f));
     sa = SDL_sinf((float)ang * (6.2831853f / 4096.0f));

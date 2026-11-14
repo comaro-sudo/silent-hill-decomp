@@ -137,10 +137,15 @@ static inline unsigned int gte_stIR1_func(void) { return MFC2(9); }
 
 /* gte_SetRotMatrix_Row2 - Load rotation matrix row 2 */
 #undef gte_SetRotMatrix_Row2
+/* R33 (control reg 4) is a SCALAR: CTC2 keeps only the sign-extended low 16
+ * bits of what it is given. A raw word of {m[2][2], pad} has m[2][2] in the
+ * HIGH half on big-endian, so R33 came out as the padding (0). That zeroed the
+ * night flashlight term in func_80057658 on Wii U/GC/Wii (black roads,
+ * 2026-11-14). Pass the short itself; identical on little-endian. */
 #define gte_SetRotMatrix_Row2(r0) do { \
     unsigned int *_p = (unsigned int*)(r0); \
     CTC2(_p[3], 3); \
-    CTC2(_p[4], 4); \
+    CTC2((unsigned int)(int)((short*)(r0))[8], 4); \
 } while(0)
 
 /* gte_LoadVector0_1_2_XYZ - Load 3 vectors from xy/z arrays */
@@ -185,7 +190,7 @@ static inline unsigned int gte_stIR1_func(void) { return MFC2(9); }
     CTC2(GTE_MTXYW(((unsigned int)(unsigned short)_m[1] << 16) | (unsigned short)_m[6]), 1); \
     CTC2(GTE_MTXYW(((unsigned int)(unsigned short)_m[7] << 16) | (unsigned short)_m[4]), 2); \
     CTC2(GTE_MTXYW(((unsigned int)(unsigned short)_m[5] << 16) | (unsigned short)_m[2]), 3); \
-    CTC2(GTE_MT16(_m[8]), 4); \
+    CTC2((unsigned int)(int)_m[8], 4);   /* scalar reg: see gte_SetRotMatrix_Row2 */ \
 } while(0)
 
 /* gte_LoadVector0_XYZ - Load individual x,y,z into Vector 0 */

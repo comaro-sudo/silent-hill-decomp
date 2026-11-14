@@ -6,6 +6,10 @@
  * The *_game.c suffix is what ogc_flags.sh keys that on.
  */
 #include "game.h"
+#include "pc_config.h"
+
+/* Options > GamePad Map Zoom (1..8, default 4) */
+int WiiU_PadMapZoom(void) { return g_PcConfig.gamepadMapZoom; }
 
 /* Q12 health, 100.0 = full (g_SysWork.playerWork.player.health) */
 int WiiU_PlayerHealthQ12(void) { return (int)g_SysWork.playerWork.player.health; }

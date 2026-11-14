@@ -158,6 +158,10 @@ static const int         VAL_FR[]       = { 30, 60 };
 static const char* const LBL_FR[]       = { "30_fps", "60_fps" };
 static const int         VAL_MMMODE[]   = { 0, 1, 2 };
 static const int         VAL_MMCNR[]    = { 0, 1, 2, 3 };
+#ifdef SH_WIIU_PORT
+static const int         VAL_PADZOOM[]  = { 1, 2, 3, 4, 6, 8 };
+static const char* const LBL_PADZOOM[]  = { "1x", "2x", "3x", "4x", "6x", "8x" };
+#endif
 static const char* const LBL_MMMODE[]   = { "Off", "Square", "Circle" };
 static const char* const LBL_MMCNR[]    = { "Top_L", "Top_R", "Bottom_L", "Bottom_R" };
 extern int g_ControlStyle;   /* live camera style (R3 also updates it) */
@@ -272,6 +276,9 @@ static const s_PcOpt PCOPT_X[] = {
  * to always show it. */
 static const s_PcOpt PCOPT_X2[] = {
     { "2D_Controls",     &g_PcConfig.control2d,         "control_2d",          VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
+#ifdef SH_WIIU_PORT
+    { "GamePad_Map_Zoom",&g_PcConfig.gamepadMapZoom,    "gamepad_map_zoom",    VAL_PADZOOM, 6, LBL_PADZOOM, NULL,            1, PCK_INT      },
+#endif
     { "Minimap",         &g_PcConfig.minimap,           "minimap",             VAL_MMMODE,  3, LBL_MMMODE,  NULL,            1, PCK_INT      },
     { "Minimap_Corner",  &g_PcConfig.minimapCorner,     "minimap_corner",      VAL_MMCNR,   4, LBL_MMCNR,   NULL,            1, PCK_INT      },
     { "Minimap_Scale",   NULL, "minimap_scale",   NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.minimapScale,   NULL, MINIMAP_SCALE_MIN, MINIMAP_SCALE_MAX, 5.0f },
