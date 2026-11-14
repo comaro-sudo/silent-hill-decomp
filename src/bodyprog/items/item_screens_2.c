@@ -343,6 +343,10 @@ void GameState_ItemScreens_Update(void) // 0x8004C9B0
 #ifdef SH_PC_PORT
             Pc_Modern_SetActive(g_Pc_NextFearModern);
             Pc_Modern_DropsClear();
+            {
+                extern void Pc_LocalAch_SessionReset(void);
+                Pc_LocalAch_SessionReset();
+            }
 #endif
             func_800904F4();
 

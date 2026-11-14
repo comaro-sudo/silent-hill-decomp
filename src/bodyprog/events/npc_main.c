@@ -26,6 +26,7 @@ extern int g_DebugAnimKfView;
 extern int g_DebugViewNpcSlot;
 void Pc_KeyframeViewerPoseNpc(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
 #include "pc_modern.h"
+#include "pc_local_ach.h"
 #endif
 
 void Savegame_EnemyStateUpdate(s_SubCharacter* chara) // 0x80037DC4
@@ -46,6 +47,8 @@ void Savegame_EnemyStateUpdate(s_SubCharacter* chara) // 0x80037DC4
 
     /* Modern difficulty: count the kill (every third one drops an item). */
     Pc_Modern_EnemyKilled(chara);
+    /* Local achievements: per-weapon session kills. */
+    Pc_LocalAch_OnKill(chara);
 #endif
 
     if (g_SavegamePtr->gameDifficulty <= GameDifficulty_Normal || Rng_RandQ12() >= Q12_ANGLE(108.0f))
