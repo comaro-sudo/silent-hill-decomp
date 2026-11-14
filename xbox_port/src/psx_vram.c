@@ -67,7 +67,7 @@ typedef struct {
  * would hit the very partial-line eviction cost that made vertex staging slow
  * (7c62ad599). 16-bit direct pages cannot be palettized and still use the ARGB
  * cache below; they are the rare framebuffer-feedback textures. */
-#if defined(SH_N64_PORT)
+#if defined(SH_N64_PORT) || defined(SH_GC_PORT)   /* GameCube: ~8 MB heap, same story */
 /* An N64 has 8 MB in total and roughly 900 KB of heap left after the static
  * image, so the Xbox's 4 MB of index pages is not a tuning choice here, it is
  * the whole machine twice over. Four pages is 256 KB and still holds the
@@ -638,8 +638,16 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
          * every slot, and the game rendered ENTIRELY UNTEXTURED (white screens) —
          * a far worse failure than being tight on heap. Below the floor we
          * allocate regardless and let the map allocations degrade instead. */
+#if defined(SH_GC_PORT)
+        /* GameCube: ~8 MB heap in total, and Xbox_MemFreeKB reports USED KB
+         * there, so the floor is what gets allocated: 24 slots (6 MB) left
+         * nothing for the GX texture pages and every AllocTexMem failed. */
+        enum { HEAP_RESERVE_KB = 8 * 1024, SLOT_KB = (TEX_DIM * TEX_DIM * 4) / 1024,
+               CACHE_MIN_SLOTS = 6 };
+#else
         enum { HEAP_RESERVE_KB = 8 * 1024, SLOT_KB = (TEX_DIM * TEX_DIM * 4) / 1024,
                CACHE_MIN_SLOTS = 24 };
+#endif
         int ok = 0;
         for (i = 0; i < CACHE_N; i++) {
             unsigned freeKB = Xbox_MemFreeKB();

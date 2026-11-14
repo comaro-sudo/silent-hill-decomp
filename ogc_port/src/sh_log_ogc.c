@@ -72,6 +72,21 @@ static int ShLog_NextIndex(const char* dir)
     return idx;
 }
 
+#if defined(SH_GC_PORT)
+#include <ogc/system.h>
+static int ShLog_UartWrite(void* cookie, const char* buf, int n)
+{
+    int done = 0;
+    (void)cookie;
+    while (done < n) {
+        int c = n - done > 200 ? 200 : n - done;
+        SYS_Report("%.*s", c, buf + done);
+        done += c;
+    }
+    return n;
+}
+#endif
+
 void SH_DebugLogInit(void)
 {
     static char s_pathStore[160];
@@ -80,8 +95,18 @@ void SH_DebugLogInit(void)
     if (g_ShDebugLog)
         return;
     dir = Sh360Fs_WritableRoot();
-    if (!dir || !dir[0])
+    if (!dir || !dir[0]) {
+#if defined(SH_GC_PORT)
+        /* Disc-only boot (Dolphin): no writable card, so send the log to the
+         * emulator's OSReport UART instead (SYS_Report). */
+        g_ShDebugLog = funopen(NULL, NULL, ShLog_UartWrite, NULL, NULL);
+        if (g_ShDebugLog) {
+            g_ShLogPath = "(OSReport)";
+            setvbuf(g_ShDebugLog, NULL, _IOLBF, 0);
+        }
+#endif
         return;                       /* no card: logging stays off */
+    }
     snprintf(s_pathStore, sizeof(s_pathStore), "%ssilenthill_%03d.log", dir, ShLog_NextIndex(dir));
     g_ShDebugLog = fopen(s_pathStore, "w");
     if (!g_ShDebugLog)

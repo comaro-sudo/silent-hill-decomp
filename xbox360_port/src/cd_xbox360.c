@@ -67,6 +67,20 @@ void Cd_XboxInit(void)
         return;
 
     Sh360Fs_Init();
+#if defined(SH_GC_PORT)
+    /* No .bin on an SD card: try the GameCube DVD we booted from (dvd_gc.c). */
+    if (!Sh360Fs_BinName()[0]) {
+        extern FILE* GcDisc_OpenBin(void);
+        extern char  g_GcDiscName[];
+        s_bin = GcDisc_OpenBin();
+        if (s_bin) {
+            setvbuf(s_bin, s_binStdioBuf, _IOFBF, sizeof(s_binStdioBuf));
+            snprintf(g_CdBinPath, sizeof(g_CdBinPath), "dvd:%s", g_GcDiscName);
+            SH_DBG("[CD] bin open from DVD: '%s'", g_CdBinPath);
+            return;
+        }
+    }
+#endif
     if (!Sh360Fs_BinName()[0]) {
         snprintf(g_CdBinPath, sizeof(g_CdBinPath), "NOT FOUND");
         SH_DBG("[CD] no .bin located by fs layer");

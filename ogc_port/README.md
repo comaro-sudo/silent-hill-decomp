@@ -52,6 +52,20 @@ The disc image's folder also holds:
 
 The Wii build also runs on a Wii U in Wii mode. The native Wii U build exists for 1080p output and the GamePad.
 
+### GameCube disc (Dolphin)
+
+Dolphin cannot emulate an SD adapter, so the GameCube build can also read the PS1 `.bin` from the DVD it booted from (used when no SD volume holds one; the SD path stays first). `ogc_port/src/dvd_gc.c` parses the disc FST, finds the largest `*.bin` and exposes it as a `FILE*` (`funopen` over `DVD_ReadPrio`), so `cd_xbox360.c` is unchanged apart from one hook. With no writable device the log goes to the OSReport UART (`SYS_Report`), visible in Dolphin's log with the OSREPORT channel on.
+
+```sh
+bash ogc_port/tools/build_apploader.sh                       # own apploader, no Nintendo code (WSL)
+python3 ogc_port/tools/mkgcm.py --dol ogc_port/bin/cube/silenthill.dol     --bin "Silent Hill (v1.1).bin" --apploader ogc_port/tools/apploader.bin --out silenthill.gcm
+dolphin -b -e silenthill.gcm
+```
+
+`apploader_stub.c` implements only the apploader contract (init/main/close): it streams the DOL sections and returns the entry point. Dolphin boots it. Never commit the resulting image (it contains the game).
+
+GameCube memory: Dolphin's 24 MB leaves about 8 MB of heap after the 9.6 MB BSS (voice PCM cut to 16K samples, PSX-VRAM caches cut to the N64 sizes under `SH_GC_PORT`). There is no memory card in a disc-only setup, so saves are unavailable.
+
 ### Controls
 
 The buttons are mapped by position, so each one sits where the PlayStation's would.
