@@ -270,7 +270,9 @@ void Pc_LocalAch_Update(void)
     }
 
     /* Story, puzzles and items with named event flags. */
-    if (Savegame_EventFlagGet(EventFlag_M0S01_CafeCutsceneStarted))    Ach_Unlock(0);  /* meet Cybil */
+    /* "Complete the introduction chapter and meet Cybil": the chapter ends with
+     * the café Air Screamer fight, not when the café cutscene starts. */
+    if (Savegame_EventFlagGet(EventFlag_M0S01_AirScreamerDeathPlayed)) Ach_Unlock(0);
     if (Savegame_EventFlagGet(EventFlag_M2S00_LockOfLionOpen) &&
         Savegame_EventFlagGet(EventFlag_M2S00_LockOfWoodmanOpen) &&
         Savegame_EventFlagGet(EventFlag_M2S00_LockOfScarecrowOpen))    Ach_Unlock(1);  /* Keys for Eclipse */
