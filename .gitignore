@@ -55,3 +55,6 @@ pc_port/launcher/**/bin/
 *.obj
 *.c.d
 *.cpp.d
+
+# CafeGLSL download (wiiu_port/fetch_cafeglsl.sh)
+wiiu_port/cafeglsl/

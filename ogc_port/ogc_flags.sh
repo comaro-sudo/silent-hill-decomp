@@ -22,10 +22,22 @@ case "$PLATFORM" in
     wiiu) MACHDEP="-mcpu=750 -meabi -mhard-float -D__WIIU__ -D__WUT__"; PDEF="-DSH_WIIU_PORT"; LIBDIR="" ;;
     *) echo "PLATFORM must be wii, cube or wiiu"; exit 2 ;;
 esac
+# Wii U renderer: gx2 (native GX2 + CafeGLSL shaders, wiiu_port/src/gpu_gx2.c)
+# or sdl (SDL_RenderGeometry, gpu_sdl_wiiu.c). wiiu_port/fetch_cafeglsl.sh
+# downloads CafeGLSL into wiiu_port/cafeglsl (or point CAFEGLSL at it).
+CAFEGLSL="${CAFEGLSL:-$DECOMP/wiiu_port/cafeglsl}"
+# default: gx2 when CafeGLSL is downloaded, else the SDL renderer
+if [ -z "${WIIU_RENDERER:-}" ]; then
+    if [ -f "$CAFEGLSL/lib/libcafeglsl.a" ]; then WIIU_RENDERER=gx2; else WIIU_RENDERER=sdl; fi
+fi
+if [ "$PLATFORM" = wiiu ] && [ "$WIIU_RENDERER" = gx2 ] && [ ! -f "$CAFEGLSL/lib/libcafeglsl.a" ]; then
+    echo "WIIU_RENDERER=gx2 needs CafeGLSL: run wiiu_port/fetch_cafeglsl.sh (looked in $CAFEGLSL)"; exit 2
+fi
 if [ "$PLATFORM" = wiiu ]; then
     SYSINC="-I$DEVKITPRO/wut/include -I$DEVKITPRO/portlibs/wiiu/include
             -I$DEVKITPRO/portlibs/wiiu/include/SDL2 -I$DEVKITPRO/portlibs/ppc/include"
     OGCDEF=""
+    [ "$WIIU_RENDERER" = gx2 ] && { SYSINC="$SYSINC -I$CAFEGLSL/include"; OGCDEF="-DSH_WIIU_GX2"; }
 else
     SYSINC="-I$DEVKITPRO/libogc/include"
     OGCDEF="-DSH_OGC_PORT"

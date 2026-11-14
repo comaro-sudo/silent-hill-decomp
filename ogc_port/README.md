@@ -9,7 +9,7 @@ Branch `ogc-port`, cut from `xbox360-port`. The 360 branch already makes the sha
 | HAL | `ogc_port/src` | `ogc_port/src` | `wiiu_port/src` + the platform-neutral files in `ogc_port/src` |
 | Defines | `SH_OGC_PORT SH_GC_PORT` | `SH_OGC_PORT SH_WII_PORT` | `SH_WIIU_PORT` |
 | Video | 640×480, 4:3 | 640×480 (480p with a component cable); anamorphic 16:9 if the console is set to 16:9 | 1920×1080; Hor+ 16:9 in game, 4:3 screens at 1440×1080 |
-| Renderer | GX (`gpu_gx.c`) | GX (`gpu_gx.c`) | SDL2 `SDL_RenderGeometry` on GX2 (`gpu_sdl_wiiu.c`) |
+| Renderer | GX (`gpu_gx.c`) | GX (`gpu_gx.c`) | native GX2 + CafeGLSL shaders (`gpu_gx2.c`; `WIIU_RENDERER=sdl` builds the SDL2 `gpu_sdl_wiiu.c` fallback) |
 
 All three builds also define `SH_XBOX360_PORT SH_XBOX_PORT SH_PC_PORT`, layered the way the 360 build layers them: the big-endian fixes, the console memory behaviour and the PC game code.
 
@@ -78,6 +78,14 @@ The PS1 primitive decoder and VRAM decoder (`xbox_port/src/gpu_xbox.c`, `psx_vra
   - **Pages:** each page is uploaded in an "STP" form (alpha as the game decoded it) and a "solid" form (any visible texel fully opaque), so alpha blending also does the alpha test.
   - **Blend modes:** B−F uses reverse-subtract blending, B+F and B+F/4 use additive blending.
   - **Fog:** a second additive pass, on opaque primitives only.
+
+## Wii U GX2 renderer (`wiiu_port/src/gpu_gx2.c`)
+
+- Setup: `bash wiiu_port/fetch_cafeglsl.sh` once (CafeGLSL 1.0.0-rc1 static library, compiled into the .rpx; no .rpl on the SD card), then `PLATFORM=wiiu bash ogc_port/build_ogc.sh` -> `silenthill_gx2.rpx`. `WIIU_RENDERER=sdl` -> `silenthill.rpx`.
+- One pixel shader: `rgb = tex*col + spec`, ABR0 alpha 0/0.5/1, discard on transparent texels; clip-space W from PGXP for perspective. About 110-230 draws a frame in town (SDL: 2,500-5,000), flushed only by blend/scissor changes or a new oversize texture.
+- Textures: PSX pages as an R8 index atlas plus a palette texture, looked up in the shader (one 64 KB upload per page, any CLUT free), instead of an ARGB atlas copy per page+CLUT pair and alpha variant.
+- Both screens are GX2 (no SDL video; SDL stays for audio). Vertex attributes are all float: 8-bit UNORM attributes made the ARM64 Cemu (Adreno Vulkan) reject every pipeline (Error -13).
+- Debug: `gx2_vs.glsl` / `gx2_ps.glsl` next to the disc image override the shaders.
 
 ## Known gaps
 

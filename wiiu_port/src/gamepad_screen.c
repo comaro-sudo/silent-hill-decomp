@@ -50,7 +50,9 @@ extern const char* Sh360Fs_DataRoot(void);
 #define MAP_W 480
 #define MAP_H 360
 
+#ifndef SH_WIIU_GX2
 static SDL_Texture* s_mapTex;
+#endif
 static int          s_haveMap;
 static int          s_hideHealth;
 static int          s_offTvRequest;
@@ -92,20 +94,36 @@ static const unsigned char* Glyph(char c)
     return NULL;
 }
 
+/* ---- drawing back end -------------------------------------------------------
+ * SDL build: the GamePad's own SDL renderer. GX2 build (SH_WIIU_GX2): the
+ * Gx2Ui_* calls in gpu_gx2.c, which batch everything into one draw. */
+#ifdef SH_WIIU_GX2
+extern void Gx2Ui_Color(int r, int g, int b, int a);
+extern void Gx2Ui_Fill(float x, float y, float w, float h);
+extern void Gx2Ui_Rect(int x, int y, int w, int h);
+extern void Gx2Ui_Line(int x0, int y0, int x1, int y1);
+extern void Gx2Ui_Map(int x, int y, int w, int h);
+static void Dc_Color(SDL_Renderer* r, int cr, int cg, int cb, int ca) { (void)r; Gx2Ui_Color(cr, cg, cb, ca); }
+static void Dc_Fill(SDL_Renderer* r, int x, int y, int w, int h) { (void)r; Gx2Ui_Fill((float)x, (float)y, (float)w, (float)h); }
+static void Dc_Rect(SDL_Renderer* r, int x, int y, int w, int h) { (void)r; Gx2Ui_Rect(x, y, w, h); }
+static void Dc_Line(SDL_Renderer* r, int x0, int y0, int x1, int y1) { (void)r; Gx2Ui_Line(x0, y0, x1, y1); }
+#else
+static void Dc_Color(SDL_Renderer* r, int cr, int cg, int cb, int ca) { SDL_SetRenderDrawColor(r, (Uint8)cr, (Uint8)cg, (Uint8)cb, (Uint8)ca); }
+static void Dc_Fill(SDL_Renderer* r, int x, int y, int w, int h) { SDL_Rect q = { x, y, w, h }; SDL_RenderFillRect(r, &q); }
+static void Dc_Rect(SDL_Renderer* r, int x, int y, int w, int h) { SDL_Rect q = { x, y, w, h }; SDL_RenderDrawRect(r, &q); }
+static void Dc_Line(SDL_Renderer* r, int x0, int y0, int x1, int y1) { SDL_RenderDrawLine(r, x0, y0, x1, y1); }
+#endif
+
 static void Text(SDL_Renderer* r, int x, int y, int scale, const char* s)
 {
-    SDL_Rect px[35];
     for (; *s; s++, x += 6 * scale) {
         const unsigned char* g = Glyph(*s);
-        int row, col, n = 0;
+        int row, col;
         if (!g) continue;
         for (row = 0; row < 7; row++)
             for (col = 0; col < 5; col++)
-                if (g[row] & (0x10 >> col)) {
-                    px[n].x = x + col * scale; px[n].y = y + row * scale;
-                    px[n].w = scale; px[n].h = scale; n++;
-                }
-        SDL_RenderFillRects(r, px, n);
+                if (g[row] & (0x10 >> col))
+                    Dc_Fill(r, x + col * scale, y + row * scale, scale, scale);
     }
 }
 
@@ -140,8 +158,12 @@ static void SaveHide(void)
 
 void GamepadScreen_Init(SDL_Renderer* drc)
 {
+#ifndef SH_WIIU_GX2
     s_mapTex = SDL_CreateTexture(drc, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, MAP_W, MAP_H);
     if (s_mapTex) SDL_SetTextureScaleMode(s_mapTex, SDL_ScaleModeLinear);
+#else
+    (void)drc;
+#endif
     LoadHide();
     memset(s_trace, 0, sizeof(s_trace));
     SH_DBG("[DRC] GamePad screen up (health strip %s)", s_hideHealth ? "hidden" : "on");
@@ -173,6 +195,14 @@ int GamepadScreen_WantMapCapture(void)
     return WiiU_InMapScreen() && (s_frame % 30) == 15;
 }
 
+#ifdef SH_WIIU_GX2
+/* GX2: the backend copies the TV image to a texture on the GPU itself. */
+void GamepadScreen_MapCaptured(void)
+{
+    if (!s_haveMap) SH_DBG("[DRC] first map snapshot");
+    s_haveMap = 1;
+}
+#else
 /* Copy the TV's 4:3 area down to MAP_W x MAP_H (called before the TV present). */
 void GamepadScreen_CaptureMap(SDL_Renderer* tv, const SDL_Rect* src)
 {
@@ -196,6 +226,7 @@ void GamepadScreen_CaptureMap(SDL_Renderer* tv, const SDL_Rect* src)
     if (!s_haveMap) SH_DBG("[DRC] first map snapshot");
     s_haveMap = 1;
 }
+#endif
 
 /* One heartbeat, phase 0..1 -> -1..1 (P wave, QRS spike, T wave). */
 static float Beat(float p)
@@ -223,6 +254,12 @@ static void StageColour(int stage, int hQ12, Uint8* r, Uint8* g, Uint8* b)
     }
 }
 
+static void Polyline(SDL_Renderer* r, const int* px, const int* py, int n, int dy)
+{
+    int i;
+    for (i = 0; i + 1 < n; i++) Dc_Line(r, px[i], py[i] + dy, px[i + 1], py[i + 1] + dy);
+}
+
 static void DrawHealth(SDL_Renderer* r)
 {
     static const char* const kLabel[4] = { "", "FINE", "CAUTION", "DANGER" };
@@ -233,7 +270,7 @@ static void DrawHealth(SDL_Renderer* r)
     const int x0 = 250, x1 = TVBTN_X - 16, mid = STRIP_H / 2 + 4, amp = 34;
     Uint8 cr, cg, cb;
     int i, steps;
-    SDL_Point pts[DRC_W];
+    int px[DRC_W], py[DRC_W];
     int n = 0;
 
     StageColour(stage, hq, &cr, &cg, &cb);
@@ -250,38 +287,40 @@ static void DrawHealth(SDL_Renderer* r)
         s_trace[s_sweepX] = (short)(mid - v * amp);
     }
 
+#ifndef SH_WIIU_GX2
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
-    SDL_SetRenderDrawColor(r, 8, 8, 8, 255);
-    { SDL_Rect bg = { 0, 0, DRC_W, STRIP_H }; SDL_RenderFillRect(r, &bg); }
-    SDL_SetRenderDrawColor(r, (Uint8)(cr / 6), (Uint8)(cg / 6), (Uint8)(cb / 6), 255);
-    SDL_RenderDrawLine(r, x0, mid, x1, mid);
+#endif
+    Dc_Color(r, 8, 8, 8, 255);
+    Dc_Fill(r, 0, 0, DRC_W, STRIP_H);
+    Dc_Color(r, cr / 6, cg / 6, cb / 6, 255);
+    Dc_Line(r, x0, mid, x1, mid);
 
-    SDL_SetRenderDrawColor(r, cr, cg, cb, 255);
+    Dc_Color(r, cr, cg, cb, 255);
     Text(r, 20, mid - 14, 4, kLabel[stage]);
     /* the trace, with a gap just ahead of the sweep like a monitor */
     for (i = x0; i < x1; i++) {
         if (i > s_sweepX && i < s_sweepX + 24) {
-            if (n > 1) SDL_RenderDrawLines(r, pts, n);
+            Polyline(r, px, py, n, 0);
             n = 0;
             continue;
         }
         if (s_trace[i] == 0) s_trace[i] = (short)mid;
-        pts[n].x = i; pts[n].y = s_trace[i]; n++;
+        px[n] = i; py[n] = s_trace[i]; n++;
     }
-    if (n > 1) SDL_RenderDrawLines(r, pts, n);
+    Polyline(r, px, py, n, 0);
     /* draw it twice, offset, for a 2-pixel line */
-    for (i = 0; i < n; i++) pts[i].y++;
-    if (n > 1) SDL_RenderDrawLines(r, pts, n);
+    Polyline(r, px, py, n, 1);
 }
 
 static void DrawTvButton(SDL_Renderer* r, int offTv)
 {
-    SDL_Rect b = { TVBTN_X, TVBTN_Y, TVBTN_W, TVBTN_H };
+#ifndef SH_WIIU_GX2
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(r, 20, 20, 20, 200);
-    SDL_RenderFillRect(r, &b);
-    SDL_SetRenderDrawColor(r, 160, 160, 160, 255);
-    SDL_RenderDrawRect(r, &b);
+#endif
+    Dc_Color(r, 20, 20, 20, 200);
+    Dc_Fill(r, TVBTN_X, TVBTN_Y, TVBTN_W, TVBTN_H);
+    Dc_Color(r, 160, 160, 160, 255);
+    Dc_Rect(r, TVBTN_X, TVBTN_Y, TVBTN_W, TVBTN_H);
     Text(r, TVBTN_X + (TVBTN_W - TextW(offTv ? "TV" : "PAD", 3)) / 2, TVBTN_Y + 12, 3, offTv ? "TV" : "PAD");
 }
 
@@ -289,24 +328,33 @@ static void DrawTvButton(SDL_Renderer* r, int offTv)
 void GamepadScreen_Draw(SDL_Renderer* r)
 {
     s_frame++;
+#ifndef SH_WIIU_GX2
     SDL_RenderSetClipRect(r, NULL);
     SDL_SetRenderDrawColor(r, 0, 0, 0, 255);
     SDL_RenderClear(r);
+#endif
 
     if (WiiU_ShowHealth() && !s_hideHealth)
         DrawHealth(r);
     else if (!WiiU_ShowHealth()) {
-        SDL_SetRenderDrawColor(r, 90, 90, 90, 255);
+        Dc_Color(r, 90, 90, 90, 255);
         Text(r, (DRC_W - TextW("SILENT HILL", 5)) / 2, 30, 5, "SILENT HILL");
     }
 
+#ifdef SH_WIIU_GX2
+    if (s_haveMap) {
+        const int dh = DRC_H - STRIP_H - 6, dw = dh * 4 / 3;
+        Gx2Ui_Map((DRC_W - dw) / 2, STRIP_H + 6, dw, dh);
+    } else {
+#else
     if (s_haveMap && s_mapTex) {
         SDL_Rect dst = { (DRC_W - MAP_W) / 2, STRIP_H + 6, MAP_W, DRC_H - STRIP_H - 6 };
         dst.w = dst.h * 4 / 3;
         dst.x = (DRC_W - dst.w) / 2;
         SDL_RenderCopy(r, s_mapTex, NULL, &dst);
     } else {
-        SDL_SetRenderDrawColor(r, 70, 70, 70, 255);
+#endif
+        Dc_Color(r, 70, 70, 70, 255);
         Text(r, (DRC_W - TextW("OPEN THE MAP TO SHOW IT HERE", 3)) / 2, 290, 3, "OPEN THE MAP TO SHOW IT HERE");
     }
     DrawTvButton(r, 0);
@@ -315,6 +363,8 @@ void GamepadScreen_Draw(SDL_Renderer* r)
 /* Off-TV: the game is on the GamePad; just the button over it. */
 void GamepadScreen_DrawOverlay(SDL_Renderer* r)
 {
+#ifndef SH_WIIU_GX2
     SDL_RenderSetClipRect(r, NULL);
+#endif
     DrawTvButton(r, 1);
 }
