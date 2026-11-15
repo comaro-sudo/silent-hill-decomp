@@ -43,6 +43,8 @@
 #define KEY_ITEM_FIRST 64
 #define KEY_ITEM_LAST  127
 
+extern int VSync(int mode);
+
 /* ---- run id ------------------------------------------------------------- */
 
 static u8 Saves_NewRunId(void)

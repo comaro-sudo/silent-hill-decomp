@@ -31,6 +31,7 @@
 #include "pc_modern.h"
 #include "sh_log.h"
 
+extern long ReadGeomScreen(void);
 extern void PsyX_SetNextPrimSzExact(unsigned short s0, unsigned short s1, unsigned short s2, unsigned short s3);
 
 typedef struct
