@@ -40,7 +40,7 @@
 #include "sh_log.h"
 #include "pc_config.h"     /* save_backups */
 #include <time.h>
-#if defined(SH_OGC_PORT) || defined(SH_WIIU_PORT)
+#if defined(SH_OGC_PORT) || defined(SH_WIIU_PORT) || defined(SH_PSP_PORT)
 #include <sys/stat.h>      /* mkdir for save/backup */
 #endif
 /* Renames the PSX open/close/read/write/lseek/rename DEFINITIONS below on 360,
@@ -381,7 +381,7 @@ static void mc_backup_before_write(int chan)
     if (s_last[chan] != 0 && now - s_last[chan] < 10) { s_last[chan] = now; return; }
     s_last[chan] = now;
 
-#if defined(SH_OGC_PORT) || defined(SH_WIIU_PORT)
+#if defined(SH_OGC_PORT) || defined(SH_WIIU_PORT) || defined(SH_PSP_PORT)
     snprintf(dir, sizeof(dir), "%s" MC_PATH_SEP "backup", s_saveDir);
     mkdir(dir, 0777);
 #else
