@@ -528,6 +528,9 @@ void Pc_Saves_Update(void)
 {
     int modern;
 
+#if !defined(SH_XBOX_PORT)
+    { extern int g_PsyxMcBackups; g_PsyxMcBackups = g_PcConfig.saveBackups; } /* PsyCross card layer */
+#endif
     if (g_SavegamePtr == NULL) return;
 
     if (g_GameWork.gameState != GameState_InGame || (g_SysWork.sysFlags & SysFlag_DemoActive))
