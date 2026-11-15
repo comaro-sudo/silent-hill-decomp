@@ -202,10 +202,10 @@ static void Glint_ItemPos(const s_KeyItemSpot* s, VECTOR3* out)
 }
 
 /* Projection in plain arithmetic from the camera, the way the GTE does it
- * (screen = H * view / depth), with the game's own H. Not through the GTE
- * matrix helpers: on big-endian both the GsWSMATRIX path and the character
- * path put 1.7 m "up" 130 px sideways (Wii U, 2026-11-15); worth fixing on its
- * own, but a glint only needs one point. Screen units are the game's 2D
+ * (screen = H * view / depth), with the game's own H. (A first version used
+ * RotTransPers and unpacked its screen XY with shifts, which swaps x and y on
+ * big-endian -- the ports store it in memory order; see pc_decals.c. This
+ * version needs no GTE state at all.) Screen units are the game's 2D
  * coordinates (centre 0,0); *otz is depth / 4 like RotTransPers. */
 static int Glint_Project(const VECTOR3* p, s32 dyUp, s16* sx, s16* sy, s32* otz)
 {

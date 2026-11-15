@@ -353,8 +353,15 @@ void func_800D0FD4(s32* ord, void* arg1, u8* arg2, MATRIX* arg3, s32 arg4, s32 a
     packet = GsOUT_PACKET_P;
     ot     = &ord[sz >> 1];
 
+#ifdef SH_PC_PORT
+    /* The ports store the screen XY in memory order (x then y) on every
+     * host; shifting the int read y as x on big-endian. */
+    sxy_l = ((DVECTOR*)&sxy)->vx;
+    sxy_h = ((DVECTOR*)&sxy)->vy;
+#else
     sxy_l = sxy;
     sxy_h = sxy >> 16;
+#endif
     depth = ReadGeomScreen();
 
     w = (depth * 8) / sz + 1;
