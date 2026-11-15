@@ -15,6 +15,7 @@
  * - The glint: an additive gouraud fan with four spikes, plain PSX prims, so
  *   every renderer draws it. Nothing else changes: no sound, no text.
  */
+#include <math.h>
 #include <string.h>
 
 #include "game.h"
@@ -24,6 +25,7 @@
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/view/vc_main.h"
 #include "bodyprog/view/vw_calc.h"
+#include "bodyprog/view/vw_system.h"
 #include "map_registry.h"
 #include "pc_config.h"
 #include "pc_modern.h"
@@ -37,6 +39,7 @@ typedef struct
     u8          item;
     u16         flag;
     q19_12      x, z;
+    u16         required;  /* the pickup exists only once this flag is set; 0 = always */
 } s_KeyItemSpot;
 
 static const s_KeyItemSpot KEY_ITEMS[] = {
@@ -131,6 +134,18 @@ void Pc_KeyGlint_TestAll(void)
     SH_DBG("[TEST] all key items shine");
 }
 
+/* Test harness (autoplay WARPKEY <n>): Harry 2.5 m from spot n, facing it. */
+void Pc_KeyGlint_TestWarp(int n)
+{
+    const s_KeyItemSpot* s;
+    if (n < 0 || n >= KEY_ITEM_SPOTS || g_SavegamePtr == NULL) return;
+    s = &KEY_ITEMS[n];
+    g_SysWork.playerWork.player.position.vx = s->x + Q12(2.5f);
+    g_SysWork.playerWork.player.position.vz = s->z;
+    g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(270.0f);   /* toward -X */
+    SH_DBG("[TEST] warp to key item %d (item %d, %s)", n, (int)s->item, s->map);
+}
+
 /* ---- sightings ---------------------------------------------------------------- */
 
 static int Glint_InInventory(s32 item)
@@ -162,12 +177,16 @@ static q19_12 Glint_Isqrt(s64 v)
 static void Glint_ItemPos(const s_KeyItemSpot* s, VECTOR3* out)
 {
     s32    i, best = -1;
-    s64    bestD = (s64)Q12(1.5f) * Q12(1.5f);
+    s64    bestD = (s64)Q12(0.6f) * Q12(0.6f);
+    q19_12 floorY = Collision_GroundHeightGet(s->x, s->z);
 
+    /* Only objects where an item can lie: floor to 1.6 m up (Y grows down).
+     * A lamp or a high shelf nearby is not the item. */
     for (i = 0; i < s_objCount; i++)
     {
         s64 dx = s_objPos[i].vx - s->x, dz = s_objPos[i].vz - s->z;
         s64 d  = dx * dx + dz * dz;
+        if (s_objPos[i].vy > floorY + Q12(0.1f) || s_objPos[i].vy < floorY - Q12(1.3f)) continue;
         if (d < bestD) { bestD = d; best = i; }
     }
     if (best >= 0)
@@ -178,27 +197,51 @@ static void Glint_ItemPos(const s_KeyItemSpot* s, VECTOR3* out)
     }
     out->vx = s->x;
     out->vz = s->z;
-    out->vy = Collision_GroundHeightGet(s->x, s->z) - Q12(0.5f);
+    out->vy = floorY - Q12(0.8f);   /* table, desk and shelf height */
 }
 
+/* Projection in plain arithmetic from the camera, the way the GTE does it
+ * (screen = H * view / depth), with the game's own H. Not through the GTE
+ * matrix helpers: on big-endian both the GsWSMATRIX path and the character
+ * path put 1.7 m "up" 130 px sideways (Wii U, 2026-11-15); worth fixing on its
+ * own, but a glint only needs one point. Screen units are the game's 2D
+ * coordinates (centre 0,0); *otz is depth / 4 like RotTransPers. */
 static int Glint_Project(const VECTOR3* p, s32 dyUp, s16* sx, s16* sy, s32* otz)
 {
-    MATRIX  mat;
-    SVECTOR v;
-    s32     sxy;
-    long    pp, flag;
+    VECTOR3 cam, watch;
+    float   fx, fy, fz, len, rx, rz, ux, uy, uz, dx, dy, dz, vx, vy, vz, h;
 
-    Vw_WorldScreenMatrixAtPositionGet(&mat, p->vx, p->vy, p->vz);
-    SetRotMatrix(&mat);
-    SetTransMatrix(&mat);
-    v.vx = 0;
-    v.vy = (s16)Q12_TO_Q8(-dyUp);
-    v.vz = 0;
-    v.pad = 0;
-    *otz = RotTransPers(&v, (int*)&sxy, &pp, &flag);
-    *sx  = (s16)(sxy & 0xFFFF);
-    *sy  = (s16)((u32)sxy >> 16);
-    return *otz > 8 && ABS(*sx) < 2048 && ABS(*sy) < 2048;
+    vcGetNowCamPos(&cam);
+    vcGetNowWatchPos(&watch);
+    fx = (float)(watch.vx - cam.vx); fy = (float)(watch.vy - cam.vy); fz = (float)(watch.vz - cam.vz);
+    len = sqrtf(fx * fx + fy * fy + fz * fz);
+    if (len < 1.0f) return 0;
+    fx /= len; fy /= len; fz /= len;
+
+    /* right = forward x down (Y grows down), up (screen) = right x forward */
+    rx = -fz; rz = fx;
+    len = sqrtf(rx * rx + rz * rz);
+    if (len < 1e-4f) return 0;
+    rx /= len; rz /= len;
+    ux = -rz * fy;           /* (rx,0,rz) x (fx,fy,fz) */
+    uy = rz * fx - rx * fz;
+    uz = rx * fy;
+
+    dx = (float)(p->vx - cam.vx);
+    dy = (float)(p->vy - dyUp - cam.vy);
+    dz = (float)(p->vz - cam.vz);
+    vz = dx * fx + dy * fy + dz * fz;          /* depth */
+    vx = dx * rx + dz * rz;
+    vy = dx * ux + dy * uy + dz * uz;
+    if (vz < 4096.0f * 0.3f) return 0;         /* behind or at the near plane */
+
+    h   = (float)ReadGeomScreen();
+    /* Signs checked against Harry on screen (feet below head, right of the
+     * shelf he faces): both axes come out mirrored from the basis above. */
+    *sx = (s16)(-h * vx / vz);
+    *sy = (s16)(h * vy / vz);
+    *otz = (s32)(vz / 16.0f / 4.0f);           /* Q12 -> Q8, then SZ / 4 */
+    return ABS(*sx) < 2048 && ABS(*sy) < 2048;
 }
 
 static int Glint_WallBetween(const VECTOR3* item)
@@ -352,6 +395,7 @@ void Pc_KeyGlint_Draw(GsOT* ot)
         /* Some items have two pickup points side by side: one glint. */
         if (i > 0 && KEY_ITEMS[i - 1].flag == s->flag && s_spotMap[i - 1] == s_spotMap[i]) continue;
         if (Savegame_EventFlagGet(s->flag) || Glint_InInventory(s->item)) continue;
+        if (s->required != 0 && !Savegame_EventFlagGet(s->required)) continue;
 
         dx = s->x - g_SysWork.playerWork.player.position.vx;
         dz = s->z - g_SysWork.playerWork.player.position.vz;
@@ -359,7 +403,7 @@ void Pc_KeyGlint_Draw(GsOT* ot)
 
         Glint_ItemPos(s, &pos);
         if (!Glint_Project(&pos, 0, &sx, &sy, &otz)) continue;
-        if (ABS(sx) > 230 || ABS(sy) > 125) continue;   /* off screen (16:9-wide margin) */
+        if (ABS(sx) > 230 || ABS(sy) > 135) continue;   /* off screen (16:9 Hor+ width) */
 
         if (g_SysWork.sysState == SysState_Gameplay && !BIT_GET(s_seenVisit, bit) &&
             ((s_frame + i) & 7) == 0 && !Glint_WallBetween(&pos))
@@ -370,6 +414,8 @@ void Pc_KeyGlint_Draw(GsOT* ot)
         if (BIT_GET(s_shining, bit) && Glint_Project(&pos, Q12(0.12f), &sx2, &sy2, &otz2))
         {
             s32 radius = ABS(sy2 - sy) * 3;
+            static u8 s_logged[8];
+            if (!BIT_GET(s_logged, bit)) { BIT_SET(s_logged, bit); SH_DBG("[GLINT] item %d shining at screen (%d,%d) r=%d", (int)s->item, sx, sy, (int)radius); }
             if (radius > 40) radius = 40;
             Glint_Draw(ot, sx, sy, otz, radius);
         }

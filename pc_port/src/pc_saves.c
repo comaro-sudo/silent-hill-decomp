@@ -446,6 +446,9 @@ static s32        s_roomKey = -1;
 static int        s_bossHandled;   /* this room's boss already caused an autosave */
 static int        s_snapTick;
 
+static int s_bossSim;   /* test harness (autoplay BOSSSIM): pretend a boss is in the room */
+void Pc_Saves_TestBossSim(void) { s_bossSim = 1; SH_DBG("[TEST] boss simulated in this room"); }
+
 static void Saves_BossScan(void)
 {
     s32 key = (s32)g_SavegamePtr->mapIdx * 256 + (u8)g_SavegamePtr->mapRoomIdx;
@@ -461,6 +464,7 @@ static void Saves_BossScan(void)
         s_roomSnapValid = 0;
         s_roomKey       = key;
         s_bossHandled   = 0;
+        s_bossSim       = 0;
     }
 
     for (i = 0; i < NPC_COUNT_MAX; i++)
@@ -468,15 +472,21 @@ static void Saves_BossScan(void)
         const s_SubCharacter* n = &g_SysWork.npcs[i];
         if (Saves_IsBoss(n->model.charaId) && n->health > Q12(0.0f)) break;
     }
-    if (i < NPC_COUNT_MAX)
+    if (i < NPC_COUNT_MAX || s_bossSim)
     {
+        if (!s_bossHandled && !s_prevRoomSnapValid)
+        {
+            s_bossHandled = 1;
+            SH_DBG("[SAVES] boss in room (chara %d) but no quiet moment in a previous room: no autosave",
+                   i < NPC_COUNT_MAX ? (int)g_SysWork.npcs[i].model.charaId : -1);
+        }
         if (!s_bossHandled && s_prevRoomSnapValid)
         {
             s_bossHandled   = 1;
             s_asPendingBoss = 1;
             s_writeSnap     = s_prevRoomSnap;
             SH_DBG("[SAVES] boss in room (chara %d): autosave of the room before pending",
-                   (int)g_SysWork.npcs[i].model.charaId);
+                   i < NPC_COUNT_MAX ? (int)g_SysWork.npcs[i].model.charaId : -1);
         }
         return;
     }

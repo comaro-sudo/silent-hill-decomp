@@ -42,6 +42,8 @@
 #define AUTO_FLAG  104   /* "<frame> FLAG <n>": set savegame event flag n */
 #define AUTO_GIVE  105   /* "<frame> GIVE <id>": add item <id> to the inventory */
 #define AUTO_GLINT 106   /* "<frame> GLINTALL": every key item shines (Modern) */
+#define AUTO_WARPK 107   /* "<frame> WARPKEY <n>": Harry next to key-item spot n */
+#define AUTO_BOSS  108   /* "<frame> BOSSSIM": Modern autosave sees a boss in this room */
 #define AUTO_MAX 512
 typedef struct { int first, last, period, bit, hold; } AutoKey;
 static AutoKey s_auto[AUTO_MAX];
@@ -54,7 +56,7 @@ static int Auto_Bit(const char* n)
         {"SELECT",PSX_SELECT},{"START",PSX_START},{"UP",PSX_UP},{"RIGHT",PSX_RIGHT},
         {"DOWN",PSX_DOWN},{"LEFT",PSX_LEFT},{"L2",PSX_L2},{"R2",PSX_R2},{"L1",PSX_L1},
         {"R1",PSX_R1},{"TRIANGLE",PSX_TRIANGLE},{"CIRCLE",PSX_CIRCLE},{"CROSS",PSX_CROSS},
-        {"SQUARE",PSX_SQUARE},{"QSAVE",AUTO_QSAVE},{"QLOAD",AUTO_QLOAD},{"TOAST",AUTO_TOAST},{"OFFTV",AUTO_OFFTV},{"FLAG",AUTO_FLAG},{"GIVE",AUTO_GIVE},{"GLINTALL",AUTO_GLINT},
+        {"SQUARE",PSX_SQUARE},{"QSAVE",AUTO_QSAVE},{"QLOAD",AUTO_QLOAD},{"TOAST",AUTO_TOAST},{"OFFTV",AUTO_OFFTV},{"FLAG",AUTO_FLAG},{"GIVE",AUTO_GIVE},{"GLINTALL",AUTO_GLINT},{"WARPKEY",AUTO_WARPK},{"BOSSSIM",AUTO_BOSS},
     };
     unsigned i;
     for (i = 0; i < sizeof(k) / sizeof(k[0]); i++)
@@ -121,6 +123,16 @@ void Autoplay_Apply(unsigned short* psx)
         int rel;
         if (s_autoFrame < k->first || s_autoFrame > k->last + k->hold) continue;
         rel = (s_autoFrame - k->first) % k->period;
+        if (k->bit == AUTO_BOSS) {
+            extern void Pc_Saves_TestBossSim(void);
+            if (s_autoFrame == k->first) Pc_Saves_TestBossSim();
+            continue;
+        }
+        if (k->bit == AUTO_WARPK) {
+            extern void Pc_KeyGlint_TestWarp(int n);
+            if (rel == 0 && s_autoFrame <= k->last) Pc_KeyGlint_TestWarp(k->hold);
+            continue;
+        }
         if (k->bit == AUTO_FLAG || k->bit == AUTO_GIVE || k->bit == AUTO_GLINT) {
             extern void Xbox_TestEventFlagSet(int flag);
             extern void Xbox_TestItemGive(int id);
