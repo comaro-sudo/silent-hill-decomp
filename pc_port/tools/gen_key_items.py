@@ -11,7 +11,8 @@ decomp, spread over three files per map:
   map_points.h            MAP_POINTS[pointOfInterestIdx] -> X/Z position
   handler body            the item it gives: Event_ItemTake(InvItemId_...),
                           Event_InvItemCmd(InvItemCmd_AddItem, InvItemId_...)
-                          or Gfx_PickupItemAnimate(InvItemId_...)
+                          Gfx_PickupItemAnimate(InvItemId_...) or
+                          func_80086470(3, InvItemId_..., ...)
 
 Key items are inventory IDs 64-127 (include/bodyprog/items.h). Run from the
 repo root: python3 pc_port/tools/gen_key_items.py
@@ -95,15 +96,21 @@ def main():
             req = re.search(r"requiredEventFlag\s*=\s*(\w+)", body)
             poi = re.search(r"pointOfInterestIdx\s*=\s*(\d+)", body)
             prm = re.search(r"eventParam\s*=\s*(\d+)", body)
-            if not (flag and poi and prm):
+            if not (poi and prm):
                 continue
             idx = int(prm.group(1))
             if idx >= len(funcs):
                 continue
             handler = funcs[idx]
             hb = bodies.get(handler, "")
+            if not flag:
+                # Some pickups (map7_s02's Dagger, Key of Aratron) have no
+                # disabledEventFlag: the handler sets its own "Pickup" flag.
+                flag = re.search(r"Savegame_EventFlagSet\(\s*(EventFlag_\w*Pickup\w*)", hb)
+                if not flag:
+                    continue
             seen = set()
-            for t in re.finditer(r"(?:Event_ItemTake\(|InvItemCmd_AddItem\s*,|Gfx_PickupItemAnimate\()\s*(InvItemId_\w+)", hb):
+            for t in re.finditer(r"(?:Event_ItemTake\(|InvItemCmd_AddItem\s*,|Gfx_PickupItemAnimate\(|func_80086470\(\s*3\s*,)\s*(InvItemId_\w+)", hb):
                 if t.group(1) in seen:
                     continue
                 seen.add(t.group(1))

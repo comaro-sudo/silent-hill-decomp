@@ -320,8 +320,10 @@ void Pc_DecalsDraw(GsOT* ot)
                 break;
             }
 
-            sx[k] = (s16)(sxy & 0xFFFF);
-            sy[k] = (s16)((u32)sxy >> 16);
+            /* Memory order (x then y) on every port: the shifts read y as x on
+             * big-endian, which drew the holes sideways on Wii U/Wii/360/PS3. */
+            sx[k] = ((DVECTOR*)&sxy)->vx;
+            sy[k] = ((DVECTOR*)&sxy)->vy;
             if (ABS(sx[k]) > 2048 || ABS(sy[k]) > 2048)
             {
                 ok = 0;

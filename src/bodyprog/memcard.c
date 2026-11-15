@@ -13,6 +13,9 @@
 
 #ifdef SH_PC_PORT
 #include "sh_log.h"
+#ifdef SH_PC_PORT
+#include "dat_endian.h"   /* card holds the PSX (little-endian) layout on every host */
+#endif
 #endif
 
 #ifndef PAD_HACK_IGNORE
@@ -583,6 +586,9 @@ void MemCard_Process_Init(s_MemCard_Process* statusPtr) // 0x8002ED7C
             // Checksum check.
             if (MemCard_ChecksumValidate(&saveHeaderPtr->footer_FC, (s8*)saveHeaderPtr, sizeof(s_MemCard_SaveHeader)))
             {
+#ifdef SH_PC_PORT
+                Endian_SaveHeaderFromCard(saveHeaderPtr);
+#endif
                 deviceInfoPtr->fileState[fileIdx] = FileState_Used;
                 statusPtr->processState          = 5;
                 return;
@@ -766,6 +772,9 @@ void MemCard_Process_Load(s_MemCard_Process* statusPtr)
 
             if (statusPtr->processId == MemCardProcess_Load_Game)
             {
+#ifdef SH_PC_PORT
+                Endian_OptionsSwap(&g_MemCard_SaveWork.optionsConfig.config);
+#endif
                 memcpy(&g_GameWorkConst->config, &g_MemCard_SaveWork.optionsConfig.config, sizeof(s_OptionsConfig));
 #ifdef SH_PC_PORT
                 /* Saves written by older PC builds can carry garbage in config
@@ -790,6 +799,9 @@ void MemCard_Process_Load(s_MemCard_Process* statusPtr)
             }
             else
             {
+#ifdef SH_PC_PORT
+                Endian_SavegameFromCard(&g_MemCard_SaveWork.savegame.savegame);
+#endif
                 memcpy(g_SavegamePtr, &g_MemCard_SaveWork.savegame.savegame, sizeof(s_Savegame));
 #ifdef SH_PC_PORT
                 /* Modern difficulty: drops belong to the session, not the save. */
@@ -1007,6 +1019,10 @@ void MemCard_Process_Save(s_MemCard_Process* statusPtr)
 
         case 3: // Copies and saves user configs.
             MemCard_UserConfigCopy(&g_MemCard_SaveWork.optionsConfig, &g_GameWorkConst->config);
+#ifdef SH_PC_PORT
+            Endian_OptionsSwap(&g_MemCard_SaveWork.optionsConfig.config);
+            MemCard_ChecksumUpdate(&g_MemCard_SaveWork.optionsConfig.footer_7C, &g_MemCard_SaveWork.optionsConfig.config, sizeof(s_Savegame_OptionsConfig));
+#endif
             MemCard_FilenameGenerate(filePath, fileIdxCpy);
 
             if (MemCard_WorkSet(MemCardIoMode_Write, statusPtr->deviceId, NULL, filePath, 0, 0x300, &g_MemCard_SaveWork.optionsConfig, 0x80))
@@ -1046,7 +1062,9 @@ void MemCard_Process_Save(s_MemCard_Process* statusPtr)
             MemCard_FilenameGenerate(filePath, fileIdxCpy);
 #ifdef SH_PC_PORT
             { extern s_Savegame* Pc_Saves_SaveSource(void); /* live game, or a boss autosave snapshot */
-              MemCard_GameDataCopy(&g_MemCard_SaveWork.savegame, Pc_Saves_SaveSource()); }
+              MemCard_GameDataCopy(&g_MemCard_SaveWork.savegame, Pc_Saves_SaveSource());
+              Endian_SavegameToCard(&g_MemCard_SaveWork.savegame.savegame);
+              MemCard_ChecksumUpdate(&g_MemCard_SaveWork.savegame.footer, &g_MemCard_SaveWork.savegame.savegame, sizeof(s_Savegame_Container)); }
 #else
             MemCard_GameDataCopy(&g_MemCard_SaveWork.savegame, g_SavegamePtr);
 #endif
@@ -1088,6 +1106,20 @@ void MemCard_Process_Save(s_MemCard_Process* statusPtr)
         case 8: // Saves header information progress.
             MemCard_FilenameGenerate(filePath, fileIdxCpy);
 
+#ifdef SH_PC_PORT
+            /* The header stays native in RAM; the card gets a little-endian copy. */
+            {
+                static s_MemCard_SaveHeader s_hdrCard;
+                s_hdrCard = g_MemCard_SaveWork.devices[statusPtr->deviceId].saveHeader[fileIdxCpy];
+                Endian_SaveHeaderToCard(&s_hdrCard);
+                MemCard_ChecksumUpdate(&s_hdrCard.footer_FC, (s8*)&s_hdrCard, sizeof(s_MemCard_SaveHeader));
+                if (MemCard_WorkSet(MemCardIoMode_Write, statusPtr->deviceId, NULL, filePath, 0, 512, &s_hdrCard, sizeof(s_MemCard_SaveHeader)))
+                {
+                    statusPtr->processState = 9;
+                }
+            }
+            break;
+#endif
             if (MemCard_WorkSet(MemCardIoMode_Write, statusPtr->deviceId, NULL, filePath, 0, 512, (u8*)g_MemCard_SaveWork.devices[statusPtr->deviceId].saveHeader + (fileIdxCpy * sizeof(s_MemCard_SaveHeader)), sizeof(s_MemCard_SaveHeader)))
             {
                 statusPtr->processState = 9;

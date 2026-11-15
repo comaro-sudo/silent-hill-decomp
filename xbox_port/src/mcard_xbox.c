@@ -198,6 +198,7 @@ typedef struct {
     char           name[21];    /* 20 chars + NUL — see file header comment */
     char           padding[97]; /* pad to 128 bytes (4+4+2+21+97) */
 } McDirEntry;
+static void mc_dir_swap(McDirEntry* e);   /* card layout <-> host, below */
 #pragma pack(pop)
 
 static char s_saveDir[96]    = "";   /* "E:\UDATA\SH010000" or "D:\SilentHill\save" */
@@ -279,6 +280,7 @@ static void mc_format_buffer(unsigned char* buf)
         McDirEntry* d = (McDirEntry*)(buf + (1 + i) * MC_FRAME_SIZE);
         memset(d, 0, sizeof(*d));
         d->attr = MC_DIR_ATTR_FREE;
+        mc_dir_swap(d);   /* written as-is: card layout */
     }
     /* Frames 16..35: broken-sector list (0xFF, unused). */
     memset(buf + 16 * MC_FRAME_SIZE, 0xFF, 20 * MC_FRAME_SIZE);
@@ -437,13 +439,38 @@ static int mc_write_at(int chan, long ofs, const void* buf, int bytes)
     return (int)n == bytes;
 }
 
+/* Directory entries are stored in the PSX (little-endian) layout on every host,
+ * like the save data (dat_endian.c), so a card file moves between big- and
+ * little-endian ports. */
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+static unsigned int   mc_sw32(unsigned int v)   { return (v >> 24) | ((v >> 8) & 0xFF00u) | ((v << 8) & 0xFF0000u) | (v << 24); }
+static unsigned short mc_sw16(unsigned short v) { return (unsigned short)((v >> 8) | (v << 8)); }
+static void mc_dir_swap(McDirEntry* e) { e->attr = mc_sw32(e->attr); e->size = mc_sw32(e->size); e->unknown = mc_sw16(e->unknown); }
+#else
+static void mc_dir_swap(McDirEntry* e) { (void)e; }
+#endif
+
+static int mc_dir_read(int chan, int idx, McDirEntry* e)
+{
+    if (!mc_read_at(chan, idx * MC_FRAME_SIZE, e, sizeof(*e))) return 0;
+    mc_dir_swap(e);
+    return 1;
+}
+
+static int mc_dir_write(int chan, int idx, const McDirEntry* e)
+{
+    McDirEntry card = *e;
+    mc_dir_swap(&card);
+    return mc_write_at(chan, idx * MC_FRAME_SIZE, &card, sizeof(card));
+}
+
 /* Find a directory entry by name. Returns 1..15 if found, 0 otherwise. */
 static int mc_find_dir(int chan, const char* name, McDirEntry* outEntry)
 {
     int i;
     for (i = 1; i <= MC_DIR_ENTRY_COUNT; i++) {
         McDirEntry e;
-        if (!mc_read_at(chan, i * MC_FRAME_SIZE, &e, sizeof(e))) return 0;
+        if (!mc_dir_read(chan, i, &e)) return 0;
         if ((e.attr & 0xF0) == MC_DIR_ATTR_FREE) continue;
         if (e.name[0] == '\0') continue;
         if (strncmp(e.name, name, sizeof(e.name)) == 0) {
@@ -460,13 +487,13 @@ static int mc_alloc_dir(int chan, const char* name, int blocks)
     int i;
     for (i = 1; i <= MC_DIR_ENTRY_COUNT; i++) {
         McDirEntry e;
-        if (!mc_read_at(chan, i * MC_FRAME_SIZE, &e, sizeof(e))) return 0;
+        if (!mc_dir_read(chan, i, &e)) return 0;
         if ((e.attr & 0xF0) == MC_DIR_ATTR_FREE) {
             memset(&e, 0, sizeof(e));
             e.attr = MC_DIR_ATTR_FIRST_OR_ONLY | (blocks & 0x7);
             e.size = blocks * MC_BLOCK_SIZE;
             strncpy(e.name, name, sizeof(e.name) - 1);
-            if (!mc_write_at(chan, i * MC_FRAME_SIZE, &e, sizeof(e))) return 0;
+            if (!mc_dir_write(chan, i, &e)) return 0;
             return i;
         }
     }
@@ -698,7 +725,7 @@ int open(char* path, unsigned int flags)
     for (h = 1; h < (int)(sizeof(s_handles) / sizeof(s_handles[0])); h++) {
         if (!s_handles[h].used) {
             McDirEntry e;
-            if (!mc_read_at(chan, dirIdx * MC_FRAME_SIZE, &e, sizeof(e))) return -1;
+            if (!mc_dir_read(chan, dirIdx, &e)) return -1;
             s_handles[h].used = 1;
             s_handles[h].channel = chan;
             s_handles[h].dirIndex = dirIdx;
@@ -822,7 +849,7 @@ struct DIRENTRY* nextfile(struct DIRENTRY* dir)
     start = (int)(unsigned char)dir->system[1] + 1;
     for (i = (start < 1 ? 1 : start); i <= MC_DIR_ENTRY_COUNT; i++) {
         McDirEntry e;
-        if (!mc_read_at(chan, i * MC_FRAME_SIZE, &e, sizeof(e))) return NULL;
+        if (!mc_dir_read(chan, i, &e)) return NULL;
         if ((e.attr & 0xF0) == MC_DIR_ATTR_FREE) continue;
         if (e.name[0] == '\0') continue;
         dir->system[1] = (char)i;
@@ -852,7 +879,7 @@ int erase(char* path)
     if (dirIdx == 0) return 0;
     memset(&e, 0, sizeof(e));
     e.attr = MC_DIR_ATTR_FREE;
-    if (!mc_write_at(chan, dirIdx * MC_FRAME_SIZE, &e, sizeof(e))) return 0;
+    if (!mc_dir_write(chan, dirIdx, &e)) return 0;
     SH_DBG("[MCRD] delete '%s' (dir=%d)", path, dirIdx);
     return 1;
 }
@@ -888,10 +915,10 @@ int rename(const char* oldpath, const char* newpath)
     if (chanA != chanB) return 0;
     dirIdx = mc_find_dir(chanA, oldname, NULL);
     if (dirIdx == 0) return 0;
-    if (!mc_read_at(chanA, dirIdx * MC_FRAME_SIZE, &e, sizeof(e))) return 0;
+    if (!mc_dir_read(chanA, dirIdx, &e)) return 0;
     memset(e.name, 0, sizeof(e.name));
     strncpy(e.name, newname, sizeof(e.name) - 1);
-    if (!mc_write_at(chanA, dirIdx * MC_FRAME_SIZE, &e, sizeof(e))) return 0;
+    if (!mc_dir_write(chanA, dirIdx, &e)) return 0;
     SH_DBG("[MCRD] rename '%s' -> '%s' (dir=%d)", oldpath, newpath, dirIdx);
     return 1;
 }

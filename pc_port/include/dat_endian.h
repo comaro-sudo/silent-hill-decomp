@@ -17,4 +17,12 @@ void Demo_SwapWorkForBigEndian(void* demoWork);
 /** Convert `frameCount` entries of s_DemoFrameData (16 bytes each) in place. */
 void Demo_SwapPlayForBigEndian(void* playBuf, unsigned frameCount);
 
+/* Memory card: the card holds the PSX (little-endian) layout on every host, so
+ * card files move between big- and little-endian ports. No-ops on LE. */
+void Endian_SavegameFromCard(void* savegame);
+void Endian_SavegameToCard(void* savegame);
+void Endian_OptionsSwap(void* optionsConfig);   /* its own inverse */
+void Endian_SaveHeaderFromCard(void* header);
+void Endian_SaveHeaderToCard(void* header);
+
 #endif

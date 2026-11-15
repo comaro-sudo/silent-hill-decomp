@@ -6,6 +6,8 @@
 { "map1_s01",  98, EventFlag_M1S01_PickupSilverMedallion, Q12(-98.80f), Q12(22.80f), EventFlag_M1S01_PianoPuzzleSolved }, /* InvItemId_SilverMedallion, func_800D857C */
 { "map1_s01",  97, EventFlag_M1S01_PickupGoldMedallion, Q12(-59.20f), Q12(99.20f), EventFlag_74 }, /* InvItemId_GoldMedallion, func_800D76F4 */
 { "map1_s01",  96, EventFlag_M1S01_PickupChemical, Q12(-101.00f), Q12(100.40f), 0 }, /* InvItemId_Chemical, func_800D72DC */
+{ "map1_s01",  98, EventFlag_M1S01_PickupSilverMedallion, Q12(-103.00f), Q12(74.00f), 0 }, /* InvItemId_SilverMedallion, func_800D857C */
+{ "map1_s01",  97, EventFlag_M1S01_PickupGoldMedallion, Q12(-63.00f), Q12(-17.20f), 0 }, /* InvItemId_GoldMedallion, func_800D76F4 */
 { "map1_s02",  70, EventFlag_M1S02_PickupClassroomKey, Q12(-16.20f), Q12(-51.60f), EventFlag_M1S03_KeyDownTheDrain }, /* InvItemId_ClassroomKey, func_800DD208 */
 { "map1_s02",  99, EventFlag_M1S02_PickupRubberBall, Q12(100.20f), Q12(100.90f), 0 }, /* InvItemId_RubberBall, func_800DB33C */
 { "map1_s02",  99, EventFlag_M1S02_PickupRubberBall, Q12(99.90f), Q12(101.10f), 0 }, /* InvItemId_RubberBall, func_800DB33C */
@@ -14,6 +16,12 @@
 { "map1_s03",  69, EventFlag_M1S03_PickupLibraryReserveKey, Q12(-60.32f), Q12(20.23f), EventFlag_106 }, /* InvItemId_LibraryReserveKey, func_800DC9A0 */
 { "map1_s03",  88, EventFlag_456, Q12(-20.00f), Q12(-13.00f), 0 }, /* InvItemId_ChannelingStone, func_800DCDDC */
 { "map1_s06",  71, EventFlag_M1S06_PickupKGordonKey, Q12(20.90f), Q12(-17.26f), 0 }, /* InvItemId_KGordonKey, func_800D5B98 */
+{ "map2_s00",  83, EventFlag_147, Q12(-186.92f), Q12(300.69f), 0 }, /* InvItemId_NoteToSchool, MapEvent_CherylsSketchbook */
+{ "map2_s00",  84, EventFlag_M2S00_DogHouseNoteFound, Q12(-154.60f), Q12(2.00f), 0 }, /* InvItemId_NoteDoghouse, MapEvent_DoghouseNote */
+{ "map2_s00",  84, EventFlag_M2S00_DogHouseNoteFound, Q12(-154.60f), Q12(2.00f), 0 }, /* InvItemId_NoteDoghouse, MapEvent_DoghouseNote */
+{ "map2_s00",  84, EventFlag_M2S00_DogHouseNoteFound, Q12(-154.56f), Q12(1.78f), 0 }, /* InvItemId_NoteDoghouse, MapEvent_DoghouseNote */
+{ "map2_s00",  84, EventFlag_M2S00_DogHouseNoteFound, Q12(-154.60f), Q12(2.22f), 0 }, /* InvItemId_NoteDoghouse, MapEvent_DoghouseNote */
+{ "map2_s00",  65, EventFlag_M2S00_PickupDogHouseKey, Q12(-139.06f), Q12(53.25f), EventFlag_M2S00_DogHouseNoteFound }, /* InvItemId_HouseKey, MapEvent_DoghouseKeyTake */
 { "map2_s00",  66, EventFlag_M2S00_PickupKeyOfLion, Q12(185.23f), Q12(116.08f), 0 }, /* InvItemId_KeyOfLion, func_800E9A0C */
 { "map2_s00",  67, EventFlag_M2S00_PickupKeyOfWoodman, Q12(-190.46f), Q12(376.60f), 0 }, /* InvItemId_KeyOfWoodman, func_800E9A74 */
 { "map2_s00",  68, EventFlag_M2S00_PickupKeyOfScarecrow, Q12(99.93f), Q12(-33.10f), 0 }, /* InvItemId_KeyOfScarecrow, func_800E9CB4 */
@@ -96,10 +104,13 @@
 { "map7_s01", 119, EventFlag_214, Q12(-136.70f), Q12(-98.40f), 0 }, /* InvItemId_Screwdriver, func_800D9440 */
 { "map7_s01", 119, EventFlag_215, Q12(62.40f), Q12(-21.80f), 0 }, /* InvItemId_Screwdriver, func_800D9440 */
 { "map7_s01", 119, EventFlag_215, Q12(62.70f), Q12(-20.40f), 0 }, /* InvItemId_Screwdriver, func_800D9440 */
+{ "map7_s01", 122, EventFlag_M7S01_PickupStoneOfTime, Q12(-104.60f), Q12(-99.80f), 0 }, /* InvItemId_StoneOfTime, func_800DAB64 */
 { "map7_s02", 125, EventFlag_M7S02_PickupAnkh, Q12(21.50f), Q12(-100.80f), 0 }, /* InvItemId_Ankh, MapEvent_AnkhTake */
 { "map7_s02", 125, EventFlag_M7S02_PickupAnkh, Q12(21.50f), Q12(-100.80f), 0 }, /* InvItemId_Ankh, MapEvent_AnkhTake */
 { "map7_s02",  81, EventFlag_M7S02_PickupKeyOfBethor, Q12(62.20f), Q12(-61.10f), EventFlag_556 }, /* InvItemId_KeyOfBethor, func_800DC778 */
+{ "map7_s02", 126, EventFlag_M7S02_PickupDaggerOfMelchior, Q12(21.10f), Q12(-60.75f), 0 }, /* InvItemId_DaggerOfMelchior, func_800DCD00 */
 { "map7_s02", 127, EventFlag_M7S02_PickupDiskOfOuroboros, Q12(140.60f), Q12(-59.20f), 0 }, /* InvItemId_DiskOfOuroboros, MapEvent_DiskOfOuroborosTake */
+{ "map7_s02",  81, EventFlag_M7S02_PickupKeyOfBethor, Q12(172.80f), Q12(-20.00f), 0 }, /* InvItemId_KeyOfBethor, func_800DC778 */
 { "map7_s02", 119, EventFlag_M7S01_PickupScrewdriver, Q12(-18.55f), Q12(-99.08f), EventFlag_M7S01_PickupPliers }, /* InvItemId_Screwdriver, MapEvent_ScrewdriverTake */
 { "map7_s02", 123, EventFlag_M7S01_PickupAmuletOfSolomon, Q12(16.80f), Q12(-19.20f), 0 }, /* InvItemId_AmuletOfSolomon, MapEvent_AmuletOfSolomonTake */
 { "map7_s02", 124, EventFlag_M7S01_PickupCrestOfMercury, Q12(-181.60f), Q12(-101.20f), 0 }, /* InvItemId_CrestOfMercury, MapEvent_CrestOfMercuryTake */
@@ -109,5 +120,6 @@
 { "map7_s02", 121, EventFlag_M7S01_PickupRingOfContract, Q12(-178.40f), Q12(-99.20f), 0 }, /* InvItemId_RingOfContract, MapEvent_RingOfContractTake */
 { "map7_s02", 121, EventFlag_M7S01_PickupRingOfContract, Q12(-178.00f), Q12(-98.80f), 0 }, /* InvItemId_RingOfContract, MapEvent_RingOfContractTake */
 { "map7_s02", 120, EventFlag_M7S01_PickupCamera, Q12(-19.60f), Q12(-141.90f), 0 }, /* InvItemId_Camera, MapEvent_CameraTake */
+{ "map7_s02",  82, EventFlag_M7S02_PickupKeyOfAratron, Q12(-63.20f), Q12(-139.20f), 0 }, /* InvItemId_KeyOfAratron, func_800E0FF0 */
 { "map7_s02", 120, EventFlag_496, Q12(56.00f), Q12(-19.30f), 0 }, /* InvItemId_Camera, func_800E1398 */
 { "map7_s02", 120, EventFlag_497, Q12(56.00f), Q12(-21.50f), 0 }, /* InvItemId_Camera, func_800E1398 */

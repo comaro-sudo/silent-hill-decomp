@@ -310,8 +310,14 @@ void func_800DE8F0(MATRIX* mat, SVECTOR* arg1, SVECTOR3* result) // 0x800DE8F0
     SetTransMatrix(mat);
 
     result->vz = RotTransPers(arg1, &sxy, &unused, &unused);
+#ifdef SH_PC_PORT
+    /* Memory order (x then y) on every port; the shift read y as x on big-endian. */
+    result->vx = ((DVECTOR*)&sxy)->vx;
+    result->vy = ((DVECTOR*)&sxy)->vy;
+#else
     result->vx = sxy;
     result->vy = sxy >> 16;
+#endif
 }
 
 void func_800DE95C(void) // 0x800DE95C

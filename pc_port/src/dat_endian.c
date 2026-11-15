@@ -42,6 +42,7 @@
 #include "dat_endian.h"
 
 #include "bodyprog/demo.h"
+#include "bodyprog/memcard.h"
 #include "bodyprog/savegame.h"
 
 #if defined(__BIG_ENDIAN__) || \
@@ -179,7 +180,95 @@ void Demo_SwapPlayForBigEndian(void* playBuf, unsigned frameCount)
     }
 }
 
+/* ---- Memory card: the card holds the PSX (little-endian) layout -------------
+ *
+ * So a card file written here loads on PC/Android and back. The game keeps
+ * native values in RAM; these convert at the card boundary (memcard.c).
+ * Plain fields are a byte reversal both ways (Fix16/Fix32 are their own
+ * inverse on big-endian); bitfield bytes are repacked through the struct. */
+
+void Endian_SavegameFromCard(void* savegame) { SwapSavegame((uint8_t*)savegame); }
+
+void Endian_SavegameToCard(void* savegame)
+{
+    uint8_t*    s  = (uint8_t*)savegame;
+    s_Savegame* sg = (s_Savegame*)s;
+    uint8_t     bits25c = (uint8_t)((sg->isNextFearMode & 1) | ((sg->add290Hours & 3) << 1) |
+                                    ((sg->pickedUpSpecialItemCount & 0x1F) << 3));
+    uint32_t    raw260  = ((uint32_t)sg->field_260 & 0x0FFFFFFFu) | ((uint32_t)(sg->gameDifficulty & 0xF) << 28);
+
+    Fix16(s + SG_SAVEGAMECOUNT);
+    Fix32(s + SG_ITEMTOGGLEFLAGS);
+    Fix32n(s + SG_OVLENEMYSTATES, 45);
+    Fix32(s + SG_PAPERMAPFLAGS);
+    Fix32n(s + SG_EVENTFLAGS, 52);
+    Fix32(s + SG_HEALTHSAT);
+    Fix16(s + SG_PICKEDUPITEMS);
+    Fix32(s + SG_PLAYERHEALTH);
+    Fix32(s + SG_PLAYERPOSX);
+    Fix16(s + SG_PLAYERROTY);
+    Fix32(s + SG_PLAYERPOSZ);
+    Fix32(s + SG_GAMEPLAYTIMER);
+    Fix32(s + SG_RUNDISTANCE);
+    Fix32(s + SG_WALKDISTANCE);
+    Fix16n(s + SG_SHOTCOUNTS, 11);
+
+    s[SG_BITS_25C]     = bits25c;
+    s[SG_BITS_260 + 0] = (uint8_t)raw260;
+    s[SG_BITS_260 + 1] = (uint8_t)(raw260 >> 8);
+    s[SG_BITS_260 + 2] = (uint8_t)(raw260 >> 16);
+    s[SG_BITS_260 + 3] = (uint8_t)(raw260 >> 24);
+}
+
+void Endian_OptionsSwap(void* optionsConfig) { SwapOptionsConfig((uint8_t*)optionsConfig); }
+
+/* s_MemCard_SaveHeader: s32 unk_0, then 11 x { s32 total, u32 timer, u16 count,
+ * u8 locationId, u8 bitfield (isNextFearMode:1, add290Hours:2, special:5) },
+ * unk_88 bytes, footer (u8 checksum[2], u16 magic 0xDCDC: symmetric). */
+void Endian_SaveHeaderFromCard(void* header)
+{
+    uint8_t* h = (uint8_t*)header;
+    int      k;
+    Fix32(h);
+    for (k = 0; k < MEMCARD_SAVES_COUNT_MAX; k++)
+    {
+        uint8_t*                m   = h + 4 + k * 12;
+        s_MemCard_SaveMetadata* md  = (s_MemCard_SaveMetadata*)m;
+        uint8_t                 raw = m[11];
+        Fix32(m);
+        Fix32(m + 4);
+        Fix16(m + 8);
+        md->isNextFearMode           = raw & 1;
+        md->add290Hours              = (raw >> 1) & 3;
+        md->pickedUpSpecialItemCount = (raw >> 3) & 0x1F;
+    }
+}
+
+void Endian_SaveHeaderToCard(void* header)
+{
+    uint8_t* h = (uint8_t*)header;
+    int      k;
+    Fix32(h);
+    for (k = 0; k < MEMCARD_SAVES_COUNT_MAX; k++)
+    {
+        uint8_t*                m   = h + 4 + k * 12;
+        s_MemCard_SaveMetadata* md  = (s_MemCard_SaveMetadata*)m;
+        uint8_t                 raw = (uint8_t)((md->isNextFearMode & 1) | ((md->add290Hours & 3) << 1) |
+                                                ((md->pickedUpSpecialItemCount & 0x1F) << 3));
+        Fix32(m);
+        Fix32(m + 4);
+        Fix16(m + 8);
+        m[11] = raw;
+    }
+}
+
 #else
+
+void Endian_SavegameFromCard(void* savegame) { (void)savegame; }
+void Endian_SavegameToCard(void* savegame) { (void)savegame; }
+void Endian_OptionsSwap(void* optionsConfig) { (void)optionsConfig; }
+void Endian_SaveHeaderFromCard(void* header) { (void)header; }
+void Endian_SaveHeaderToCard(void* header) { (void)header; }
 
 void Demo_SwapWorkForBigEndian(void* demoWork) { (void)demoWork; }
 void Demo_SwapPlayForBigEndian(void* playBuf, unsigned frameCount)
