@@ -571,6 +571,8 @@ void Gfx_InGameDraw(bool arg0) // 0x8003C878
     /* Bullet-hole decals ride the world OT here so GsWSMATRIX matches the
      * chunk geometry they sit on (pc_decals.c). */
     { extern void Pc_DecalsDraw(GsOT* ot); Pc_DecalsDraw(&g_OrderingTable0[g_ActiveBufferIdx]); }
+    /* Modern: shining key items (pc_keyglint.c), same OT and matrix. */
+    { extern void Pc_KeyGlint_Draw(GsOT* ot); Pc_KeyGlint_Draw(&g_OrderingTable0[g_ActiveBufferIdx]); }
 #endif
 #ifdef SH_XBOX_PORT
     {
@@ -609,6 +611,9 @@ void WorldGfx_ObjectAdd(s_WorldObjectModel* model, const VECTOR3* pos, const SVE
     s32            lmIdx;
     s_WorldObject* obj;
 
+#ifdef SH_PC_PORT
+    { extern void Pc_KeyGlint_ObjectAdded(const VECTOR3* pos); Pc_KeyGlint_ObjectAdded(pos); } /* item heights */
+#endif
     // Check if array of world objects to draw is full.
     if (g_WorldGfxWork.objectCount < ARRAY_SIZE(g_WorldGfxWork.objects))
     {

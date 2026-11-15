@@ -236,6 +236,9 @@ void SaveScreen_ScreenInfoClear(void) // 0x801E2D8C
 
     g_SaveScreen_OverwriteActive     = 0;
     g_SaveScreen_MemCardStateDisplay = 0;
+#ifdef SH_PC_PORT
+    { extern void Pc_Saves_ScreenOpened(void); Pc_Saves_ScreenOpened(); } /* staircase cursor, pc_saves.c */
+#endif
     g_SaveScreen_SaveFlashTimer      = SAVE_FLASH_TIMER_MAX;
     g_SaveScreen_IsGameSaving        = 0;
 
@@ -380,6 +383,20 @@ void SaveScreen_SaveLocationDraw(s_SaveScreenElement* saveEntry, s32 saveIdx, s3
             Gfx_StringSetColor(colorId);
         }
 
+#ifdef SH_PC_PORT
+        /* Modern's autosave entry is labelled as such (pc_saves.c). */
+        {
+            extern int Pc_Saves_IsAutosaveEntry(s32 deviceId, s32 fileIdx, s32 saveIdx);
+            if (saveEntry->type == SavegameEntryType_Save &&
+                Pc_Saves_IsAutosaveEntry(saveEntry->deviceId, saveEntry->fileIdx, saveEntry->elementIdx))
+            {
+                Gfx_StringSetPosition(((slotIdx * OFFSET_X) + MARGIN_X) - (X_OFFSETS[0] / 2),
+                                      (selectedSaveIdx * OFFSET_Y) + MARGIN_Y);
+                Gfx_StringDraw("Autosave", 50);
+                return;
+            }
+        }
+#endif
         Gfx_StringSetPosition(((slotIdx * OFFSET_X) + MARGIN_X) - (X_OFFSETS[nameIdx] / 2),
                               (selectedSaveIdx * OFFSET_Y) + MARGIN_Y);
         Gfx_StringDraw(g_Savegame_SaveLocationNames[nameIdx], 50);
@@ -1855,6 +1872,12 @@ void SaveScreen_LogicUpdate(void) // 0x801E649C
             {
                 break;
             }
+#ifdef SH_PC_PORT
+            /* Once per open, when the list is ready: the cards may have been
+             * scanned before (title load, an autosave), in which case the
+             * game's own default never runs and the cursor keeps a stale row. */
+            { extern void Pc_Saves_StaircaseOnce(void); Pc_Saves_StaircaseOnce(); }
+#endif
 
             // Memory cards are inserted and user is moving between slots.
             if (g_Savegame_ElementCount0[0] != 0 && g_Savegame_ElementCount0[1] != 0 &&

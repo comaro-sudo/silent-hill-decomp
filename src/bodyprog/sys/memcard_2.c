@@ -440,6 +440,9 @@ bool func_80033548(void) // 0x80033548
         {
             g_SelectedSaveSlotIdx = 0;
         }
+#ifdef SH_PC_PORT
+        { extern void Pc_Saves_StaircaseDefault(void); Pc_Saves_StaircaseDefault(); } /* pc_saves.c */
+#endif
 
         g_GameWork.gameStateSteps[1] = 0;
         g_GameWork.gameStateSteps[2] = 0;
@@ -866,6 +869,9 @@ bool MemCard_ElementsUpdate(void) // 0x80033548
         {
             g_SelectedSaveSlotIdx = 0;
         }
+#ifdef SH_PC_PORT
+        { extern void Pc_Saves_StaircaseDefault(void); Pc_Saves_StaircaseDefault(); } /* pc_saves.c */
+#endif
 
         g_GameWork.gameStateSteps[1] = 0;
         g_GameWork.gameStateSteps[2] = 0;

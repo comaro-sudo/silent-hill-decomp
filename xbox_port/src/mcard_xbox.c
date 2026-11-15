@@ -38,6 +38,11 @@
 #include <psyq/libapi.h>    /* PsyCross libapi decls + kernel.h: SwCARD/HwCARD, EvSp*, EvMd*, DIRENTRY */
 #include <psyq/sys/file.h>  /* FCREAT */
 #include "sh_log.h"
+#include "pc_config.h"     /* save_backups */
+#include <time.h>
+#if defined(SH_OGC_PORT) || defined(SH_WIIU_PORT)
+#include <sys/stat.h>      /* mkdir for save/backup */
+#endif
 /* Renames the PSX open/close/read/write/lseek/rename DEFINITIONS below on 360,
  * where newlib already owns those symbols for stdio. No-op elsewhere. */
 #include "psx_io_console.h"
@@ -360,6 +365,52 @@ static int mc_read_at(int chan, long ofs, void* buf, int bytes)
 }
 
 /* Write N bytes at byte offset; returns 1 on success. */
+/* save_backups: before the first write of a save (a burst of writes more than
+ * 10 s after the previous one), keep copies of the card file: N.MCD.1 is the
+ * card as it was before the latest save, .2 the one before that, ...
+ * In save/backup/ where the platform can make the folder, else next to it. */
+static void mc_backup_before_write(int chan)
+{
+    static time_t s_last[16];
+    char  dir[128], from[160], to[160];
+    int   k, keep = g_PcConfig.saveBackups;
+    FILE *in, *out;
+    time_t now = time(NULL);
+
+    if (keep <= 0 || chan < 0 || chan >= 16) return;
+    if (s_last[chan] != 0 && now - s_last[chan] < 10) { s_last[chan] = now; return; }
+    s_last[chan] = now;
+
+#if defined(SH_OGC_PORT) || defined(SH_WIIU_PORT)
+    snprintf(dir, sizeof(dir), "%s" MC_PATH_SEP "backup", s_saveDir);
+    mkdir(dir, 0777);
+#else
+    snprintf(dir, sizeof(dir), "%s", s_saveDir);
+#endif
+    snprintf(to, sizeof(to), "%s" MC_PATH_SEP "%d.MCD.%d", dir, chan, keep);
+    remove(to);
+    for (k = keep - 1; k >= 1; k--)
+    {
+        snprintf(from, sizeof(from), "%s" MC_PATH_SEP "%d.MCD.%d", dir, chan, k);
+        snprintf(to, sizeof(to), "%s" MC_PATH_SEP "%d.MCD.%d", dir, chan, k + 1);
+        rename(from, to);
+    }
+
+    in = mc_fopen(chan, "rb");
+    if (!in) return;   /* nothing to keep yet */
+    snprintf(to, sizeof(to), "%s" MC_PATH_SEP "%d.MCD.1", dir, chan);
+    out = fopen(to, "wb");
+    if (out)
+    {
+        static unsigned char s_copy[16384];
+        size_t got;
+        while ((got = fread(s_copy, 1, sizeof(s_copy), in)) > 0) fwrite(s_copy, 1, got, out);
+        fclose(out);
+        SH_DBG("[MCRD] backup %s", to);
+    }
+    fclose(in);
+}
+
 static int mc_write_at(int chan, long ofs, const void* buf, int bytes)
 {
     FILE*  f;
@@ -372,6 +423,7 @@ static int mc_write_at(int chan, long ofs, const void* buf, int bytes)
         return 1;
     }
 #endif
+    mc_backup_before_write(chan);
     f = mc_fopen(chan, "rb+");
     if (!f) {
         if (!mc_ensure_card(chan)) return 0;   /* card missing — auto-create */

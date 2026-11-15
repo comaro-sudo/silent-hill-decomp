@@ -29,6 +29,23 @@ static int s_pendingLoad;
 void Xbox_QuickSaveRequest(void) { s_pendingSave = 1; s_pendingLoad = 0; }
 void Xbox_QuickLoadRequest(void) { s_pendingLoad = 1; s_pendingSave = 0; }
 
+/* Test harness (autoplay GIVE <id>): put an item in the first free slot. */
+void Xbox_TestItemGive(int id)
+{
+    s32 i;
+    if (g_SavegamePtr == NULL) return;
+    for (i = 0; i < INV_ITEM_COUNT_MAX; i++)
+    {
+        if (g_SavegamePtr->items[i].id_0 == 0 || (u8)g_SavegamePtr->items[i].id_0 == 0xFF)
+        {
+            g_SavegamePtr->items[i].id_0    = (u8)id;
+            g_SavegamePtr->items[i].count_1 = 1;
+            SH_DBG("[TEST] item %d given (slot %d)", id, (int)i);
+            return;
+        }
+    }
+}
+
 /* Test harness (autoplay FLAG <n>): set a savegame event flag in gameplay. */
 void Xbox_TestEventFlagSet(int flag)
 {

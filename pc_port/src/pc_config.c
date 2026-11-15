@@ -76,6 +76,11 @@ s_PcConfig g_PcConfig = {
     .minimap                 = 1, /* square minimap (DEFAULTS.md) */
     .minimapCorner           = 3, /* bottom-right (DEFAULTS.md) */
     .gamepadMapZoom          = 4, /* Wii U GamePad map */
+    .saveStaircase           = 1, /* saves go after the previous one, never over it */
+    .saveBackups             = 5,
+    .autosaveKeyItems        = 1, /* Modern only */
+    .autosaveBeforeBoss      = 1, /* Modern only */
+    .modernKeyGlint          = 1, /* Modern only */
     .minimapShape            = 1, /* deprecated; only feeds the old-config migration */
     .minimapScale            = 75.0f, /* DEFAULTS.md */
     .minimapRequireMap       = 1, /* the map only appears once Harry has found it */
@@ -747,6 +752,19 @@ void PcConfig_Load(const char* path)
             if (v > MINIMAP_SCALE_MAX) v = MINIMAP_SCALE_MAX;
             g_PcConfig.minimapScale = v;
         }
+        else if (strcmp(key, "save_staircase") == 0)
+            g_PcConfig.saveStaircase = (atoi(value) != 0);
+        else if (strcmp(key, "save_backups") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.saveBackups = (v < 0) ? 0 : ((v > 20) ? 20 : v);
+        }
+        else if (strcmp(key, "autosave_key_items") == 0)
+            g_PcConfig.autosaveKeyItems = (atoi(value) != 0);
+        else if (strcmp(key, "autosave_before_boss") == 0)
+            g_PcConfig.autosaveBeforeBoss = (atoi(value) != 0);
+        else if (strcmp(key, "modern_key_glint") == 0)
+            g_PcConfig.modernKeyGlint = (atoi(value) != 0);
         else if (strcmp(key, "gamepad_map_zoom") == 0)
         {
             int v = atoi(value);

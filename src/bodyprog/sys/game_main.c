@@ -2388,6 +2388,7 @@ void MainLoop(void) // 0x80032EE0
         XaPlayer_Update();
         Pc_Modern_Update();    /* Modern difficulty regen and drops, pc_modern.c */
         { extern void Pc_LocalAch_Update(void); Pc_LocalAch_Update(); } /* local achievements + toast, pc_local_ach.c */
+        { extern void Pc_Saves_Update(void); Pc_Saves_Update(); }       /* Modern autosaves, pc_saves.c */
 #endif
 #ifdef SH_XBOX_PORT
         _postAudioMs = (unsigned)((ShxLoopRdtsc() - _a0) / SH_CYCLES_PER_MS);
