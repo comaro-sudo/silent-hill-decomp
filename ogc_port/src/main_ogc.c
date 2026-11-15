@@ -182,6 +182,11 @@ int main(void)
     g_PcConfig.disableCulling = -1;
 #if defined(SH_WIIU_PORT)
     g_PcConfig.minimap = 0;              /* the GamePad shows the map instead */
+#elif defined(SH_GC_PORT)
+    /* Off by default: the 320x480 map texture (~600 KB) does not fit the GX
+     * texture memory left in 24 MB (out of memory every frame, then Dolphin
+     * exited, 2026-11-14). `minimap = 1` in the cfg still turns it on. */
+    g_PcConfig.minimap = 0;
 #endif
     PcConfig_Load(cfgPath);
     if (g_PcConfig.disableCulling < 0)
