@@ -167,6 +167,11 @@ s_PcConfig g_PcConfig = {
     .anisoLevel              = 8,
     .shadowMapSize           = 1024,
     .minimapCorner           = 3, /* bottom-right */
+    .saveStaircase           = 1, /* saves go after the previous one, never over it */
+    .saveBackups             = 5,
+    .autosaveKeyItems        = 1, /* Modern only */
+    .autosaveBeforeBoss      = 1, /* Modern only */
+    .modernKeyGlint          = 1, /* Modern only */
     .minimapShape            = 1, /* deprecated; only feeds the old-config migration */
     .configVersion           = 0, /* absent key = pre-versioning; migration runs, then it is stamped */
     .minimapScale            = 75.0f,
@@ -1202,6 +1207,19 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.crosshairHideMelee = (atoi(value) != 0);
         }
+        else if (strcmp(key, "save_staircase") == 0)
+            g_PcConfig.saveStaircase = (atoi(value) != 0);
+        else if (strcmp(key, "save_backups") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.saveBackups = (v < 0) ? 0 : ((v > 20) ? 20 : v);
+        }
+        else if (strcmp(key, "autosave_key_items") == 0)
+            g_PcConfig.autosaveKeyItems = (atoi(value) != 0);
+        else if (strcmp(key, "autosave_before_boss") == 0)
+            g_PcConfig.autosaveBeforeBoss = (atoi(value) != 0);
+        else if (strcmp(key, "modern_key_glint") == 0)
+            g_PcConfig.modernKeyGlint = (atoi(value) != 0);
         else if (strcmp(key, "auto_reload") == 0)
         {
             int v = atoi(value);

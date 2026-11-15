@@ -3036,6 +3036,7 @@ void MainLoop(void) // 0x80032EE0
         Pc_DarkHarry_Update(); /* easter egg, pc_dark_harry.c */
         Pc_Modern_Update();    /* Modern difficulty regen and drops, pc_modern.c */
         Pc_LocalAch_Update();  /* local achievements, pc_local_ach.c */
+        { extern void Pc_Saves_Update(void); Pc_Saves_Update(); } /* Modern autosaves, pc_saves.c */
         Pc_FogFloorFrameEnd();
         if (g_PcConfig.fpsDisplay)
         {

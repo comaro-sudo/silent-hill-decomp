@@ -654,6 +654,13 @@ typedef struct {
      * default); 2 = the original game: 1, and the clip also fills from the
      * reserve the moment the gun is raised, silently. (config key: auto_reload) */
     int autoReload;
+
+    /* Saves (pc_saves.c, docs/plans/staircase-saves-plan.md). */
+    int saveStaircase;      /* 1 = save screen defaults to the free entry after the last save, never an overwrite (save_staircase) */
+    int saveBackups;        /* copies of each card file kept in save/backup/ before writes, 0 = off (save_backups) */
+    int autosaveKeyItems;   /* Modern: autosave after a key item is picked up (autosave_key_items) */
+    int autosaveBeforeBoss; /* Modern: autosave in the room before a boss room (autosave_before_boss) */
+    int modernKeyGlint;     /* Modern: key items shine after two sightings (modern_key_glint) */
 } s_PcConfig;
 
 extern s_PcConfig g_PcConfig;

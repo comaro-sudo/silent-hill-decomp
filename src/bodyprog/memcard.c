@@ -701,6 +701,14 @@ s32 MemCard_FileLimitUpdate(s32 deviceId, s_MemCard_Directory* dir) // 0x8002F27
     return ret + MemCard_UsedFileCount(deviceId);
 }
 
+#ifdef SH_PC_PORT
+/* Last 128-byte sector of each save file's 8 KB block: the game never uses
+ * 0x1F00-0x1FFF (saves end at 0x380 + 11 * 0x280 = 0x1F00). PC builds keep
+ * Modern's key-item sightings there, one record per slot (pc_keyglint.c). */
+#define PC_SIGHT_SECTOR_OFS 0x1F80
+static u8 s_PcSightSector[128];
+#endif
+
 void MemCard_Process_Load(s_MemCard_Process* statusPtr)
 {
     char                  filePath[24];
@@ -866,6 +874,9 @@ void MemCard_Process_Load(s_MemCard_Process* statusPtr)
                     Pc_Modern_DropsClear();
                     Pc_LocalAch_SessionReset(); /* achievements: per-session counters */
                 }
+                /* Then this slot's key-item sightings (steps 4-5). */
+                statusPtr->processState      = 4;
+                statusPtr->lastMemCardResult = MemCardResult_Success;
 #endif
 #ifdef SH_PC_PORT
                 /* A play clock broken by Game_TimerUpdate's old out-of-range
@@ -888,6 +899,36 @@ void MemCard_Process_Load(s_MemCard_Process* statusPtr)
 #endif
             }
             break;
+#ifdef SH_PC_PORT
+        case 4: /* PC: the file's last sector, for this slot's sightings record. */
+        {
+            char sightPath[32];
+            MEMCARD_FILENAME(sightPath, statusPtr->deviceId, fileIdx);
+            if (MemCard_WorkSet(MemCardIoMode_Read, statusPtr->deviceId, NULL, sightPath, 0, PC_SIGHT_SECTOR_OFS, s_PcSightSector, 128))
+            {
+                statusPtr->processState = 5;
+            }
+            break;
+        }
+
+        case 5:
+        {
+            extern void Pc_KeyGlint_RecordRead(const u8* sector, s32 slot);
+            memCardResult = MemCard_StateResult();
+            if (memCardResult == MemCardResult_FileIoComplete)
+            {
+                Pc_KeyGlint_RecordRead(s_PcSightSector, statusPtr->saveIdx);
+                statusPtr->lastMemCardResult = MemCardResult_FileIoComplete;
+            }
+            else if (memCardResult == MemCardResult_NotConnected ||
+                     (memCardResult >= MemCardResult_FileCreateError && memCardResult <= MemCardResult_FileIoError))
+            {
+                Pc_KeyGlint_RecordRead(NULL, 0);   /* the save loaded; no sightings */
+                statusPtr->lastMemCardResult = MemCardResult_FileIoComplete;
+            }
+            break;
+        }
+#endif
     }
 }
 
@@ -1073,7 +1114,12 @@ void MemCard_Process_Save(s_MemCard_Process* statusPtr)
 
         case 5: // Copies and saves user progress.
             MEMCARD_FILENAME(filePath, statusPtr->deviceId, fileIdxCpy);
+#ifdef SH_PC_PORT
+            { extern s_Savegame* Pc_Saves_SaveSource(void); /* live game, or a boss autosave snapshot */
+              MemCard_GameDataCopy(&g_MemCard_SaveWork.savegame, Pc_Saves_SaveSource()); }
+#else
             MemCard_GameDataCopy(&g_MemCard_SaveWork.savegame, g_SavegamePtr);
+#endif
 
             if (MemCard_WorkSet(MemCardIoMode_Write, statusPtr->deviceId, NULL, filePath, 0, (statusPtr->saveIdx * 0x280) + 0x380, &g_MemCard_SaveWork.savegame, 0x280))
             {
@@ -1137,10 +1183,67 @@ void MemCard_Process_Save(s_MemCard_Process* statusPtr)
                     break;
 
                 case MemCardResult_FileIoComplete:
+#ifdef SH_PC_PORT
+                    /* Then the key-item sightings record (pc_keyglint.c). */
+                    if (statusPtr->processId == MemCardProcess_Save_5)
+                    {
+                        statusPtr->processState = 10;
+                        break;
+                    }
+#endif
                     statusPtr->lastMemCardResult = memCardResult;
                     break;
             }
             break;
+#ifdef SH_PC_PORT
+        /* Steps 10-13 (PC): read the file's last sector, update this slot's
+         * sightings record, write it back. Sector-sized like every other card
+         * IO. The save itself is already on the card, so a failure here is
+         * logged and the save still reports success. */
+        case 10:
+            MEMCARD_FILENAME(filePath, statusPtr->deviceId, fileIdxCpy);
+            if (MemCard_WorkSet(MemCardIoMode_Read, statusPtr->deviceId, NULL, filePath, 0, PC_SIGHT_SECTOR_OFS, s_PcSightSector, 128))
+            {
+                statusPtr->processState = 11;
+            }
+            break;
+
+        case 11:
+            memCardResult = MemCard_StateResult();
+            if (memCardResult == MemCardResult_FileIoComplete)
+            {
+                extern void Pc_KeyGlint_RecordWrite(u8* sector, s32 slot);
+                Pc_KeyGlint_RecordWrite(s_PcSightSector, statusPtr->saveIdx);
+                statusPtr->processState = 12;
+            }
+            else if (memCardResult == MemCardResult_NotConnected || (memCardResult >= MemCardResult_FileCreateError && memCardResult <= MemCardResult_FileIoError))
+            {
+                SH_DBG("[MCRD] sightings sector read failed (%d); save kept", (int)memCardResult);
+                statusPtr->lastMemCardResult = MemCardResult_FileIoComplete;
+            }
+            break;
+
+        case 12:
+            MEMCARD_FILENAME(filePath, statusPtr->deviceId, fileIdxCpy);
+            if (MemCard_WorkSet(MemCardIoMode_Write, statusPtr->deviceId, NULL, filePath, 0, PC_SIGHT_SECTOR_OFS, s_PcSightSector, 128))
+            {
+                statusPtr->processState = 13;
+            }
+            break;
+
+        case 13:
+            memCardResult = MemCard_StateResult();
+            if (memCardResult == MemCardResult_FileIoComplete)
+            {
+                statusPtr->lastMemCardResult = MemCardResult_FileIoComplete;
+            }
+            else if (memCardResult == MemCardResult_NotConnected || (memCardResult >= MemCardResult_FileCreateError && memCardResult <= MemCardResult_FileIoError))
+            {
+                SH_DBG("[MCRD] sightings sector write failed (%d); save kept", (int)memCardResult);
+                statusPtr->lastMemCardResult = MemCardResult_FileIoComplete;
+            }
+            break;
+#endif
     }
 }
 
@@ -1211,6 +1314,9 @@ void MemCard_TotalSavegameCountUpdate(s32 deviceId, s32 fileIdx, s32 saveIdx, s_
     ptr = &g_MemCard_SaveWork.devices[deviceId].saveHeader[fileIdx];
 
     MemCard_TotalSavegameCountStepUpdate(deviceId, fileIdx, saveIdx);
+#ifdef SH_PC_PORT
+    { extern void Pc_Saves_HeaderTag(s_MemCard_SaveHeader*, s32); Pc_Saves_HeaderTag(ptr, saveIdx); } /* run id, pc_saves.c */
+#endif
     MemCard_ChecksumUpdate(&ptr->footer_FC, ptr, sizeof(s_MemCard_SaveHeader));
 }
 

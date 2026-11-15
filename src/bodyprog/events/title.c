@@ -755,6 +755,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                     GameBoot_SavegameInitialize(mapId, ROW_DIFFICULTY[newGameSelectedDifficultyIdx & 3]);
                     Pc_Modern_SetActive(newGameSelectedDifficultyIdx == 1);
                     Pc_LocalAch_SessionReset();
+                    { extern void Pc_Saves_NewRun(void); Pc_Saves_NewRun(); } /* run id, pc_saves.c */
 
                     /* Randomizer: start the run here, after the savegame wipe and
                      * before GameBoot_MapLoad, so its per-map hook sees a live run
