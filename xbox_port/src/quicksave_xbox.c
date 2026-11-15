@@ -29,6 +29,14 @@ static int s_pendingLoad;
 void Xbox_QuickSaveRequest(void) { s_pendingSave = 1; s_pendingLoad = 0; }
 void Xbox_QuickLoadRequest(void) { s_pendingLoad = 1; s_pendingSave = 0; }
 
+/* Test harness (autoplay FLAG <n>): set a savegame event flag in gameplay. */
+void Xbox_TestEventFlagSet(int flag)
+{
+    if (g_SavegamePtr == NULL || flag < 0 || flag >= 52 * 32) return;
+    Savegame_EventFlagSet(flag);
+    SH_DBG("[TEST] event flag %d set", flag);
+}
+
 /* A boss fight is the one place a quick save can strand a run: the save records
  * the player mid-arena, and reloading it drops them back into a fight they may
  * have entered with no health or ammo, with no way back out. The original game

@@ -425,6 +425,9 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 newGameSelectedDifficultyIdx = nextGameDifficultyIdx;
             }
 
+#ifdef SH_PC_PORT
+            { static int s_diffShown; if (!s_diffShown++) SH_DBG("[NEWGAME] difficulty menu up"); }
+#endif
             // Play scroll sound.
             if (g_Controller0->pulsedBtnFlags & (ControllerFlag_LStickUp | ControllerFlag_LStickDown))
             {
@@ -444,6 +447,8 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                     static const s8 ROW_DIFFICULTY[4] = {
                         GameDifficulty_Easy, GameDifficulty_Normal, GameDifficulty_Normal, GameDifficulty_Hard
                     };
+                    SH_DBG("[NEWGAME] difficulty row %d (0 Easy, 1 Modern, 2 Normal, 3 Hard) start map '%s'",
+                           (int)newGameSelectedDifficultyIdx, g_PcConfig.mapName);
                     Pc_Modern_DropsClear();
                     GameBoot_SavegameInitialize(mapId, ROW_DIFFICULTY[newGameSelectedDifficultyIdx & 3]);
                     Pc_Modern_SetActive(newGameSelectedDifficultyIdx == 1);

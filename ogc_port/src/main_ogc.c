@@ -18,6 +18,7 @@
  */
 #include "ogc_prelude.h"
 #include <stdio.h>
+#include <string.h>
 
 #include "sh_log.h"
 #include "fs_xbox360.h"
@@ -189,7 +190,13 @@ int main(void)
         const int preload = g_PcConfig.preloadChunks;
         const int noCull  = g_PcConfig.disableCulling;
         int       wide    = g_PcConfig.widescreenMode;
+        char      startMap[sizeof(g_PcConfig.mapName)];
+        /* `map = <name>` (the new-game start map) survives the overrides: the
+         * cfg only exists here if someone wrote one, and test runs use it to
+         * start a new game in a later area. */
+        memcpy(startMap, g_PcConfig.mapName, sizeof(startMap));
         XboxConfig_ApplyOverrides();
+        if (startMap[0]) memcpy(g_PcConfig.mapName, startMap, sizeof(startMap));
 #if defined(SH_WIIU_PORT)
         g_PcConfig.preloadChunks = preload;  /* 1 GB: the cfg decides */
 #else
