@@ -423,3 +423,14 @@ void Pc_KeyGlint_Draw(GsOT* ot)
     }
     s_objCount = 0;
 }
+
+/* Shared with the door guidance (pc_doorguide.c): same projection, same wall test. */
+int Pc_KeyGlint_Project(const VECTOR3* p, s32 dyUp, s16* sx, s16* sy, s32* otz)
+{
+    return Glint_Project(p, dyUp, sx, sy, otz);
+}
+
+int Pc_KeyGlint_WallBetween(const VECTOR3* p)
+{
+    return Glint_WallBetween(p);
+}

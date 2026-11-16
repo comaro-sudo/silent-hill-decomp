@@ -518,6 +518,7 @@ void Gfx_InGameDraw(bool arg0) // 0x8003C878
     { extern void Pc_DecalsDraw(GsOT* ot); Pc_DecalsDraw(&g_OrderingTable0[g_ActiveBufferIdx]); }
     /* Modern: shining key items (pc_keyglint.c), same OT and matrix. */
     { extern void Pc_KeyGlint_Draw(GsOT* ot); Pc_KeyGlint_Draw(&g_OrderingTable0[g_ActiveBufferIdx]); }
+    { extern void Pc_DoorGuide_Draw(GsOT* ot); Pc_DoorGuide_Draw(&g_OrderingTable0[g_ActiveBufferIdx]); }
 #endif
     Gfx_2dEffectsDraw();
 }

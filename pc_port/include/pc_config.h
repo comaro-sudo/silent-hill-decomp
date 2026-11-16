@@ -661,6 +661,7 @@ typedef struct {
     int autosaveKeyItems;   /* Modern: autosave after a key item is picked up (autosave_key_items) */
     int autosaveBeforeBoss; /* Modern: autosave in the room before a boss room (autosave_before_boss) */
     int modernKeyGlint;     /* Modern: key items shine after two sightings (modern_key_glint) */
+    int modernDoorGuide;    /* Modern: the next door shines when stuck (modern_door_guide) */
 } s_PcConfig;
 
 extern s_PcConfig g_PcConfig;

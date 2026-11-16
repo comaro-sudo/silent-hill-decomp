@@ -172,6 +172,7 @@ s_PcConfig g_PcConfig = {
     .autosaveKeyItems        = 1, /* Modern only */
     .autosaveBeforeBoss      = 1, /* Modern only */
     .modernKeyGlint          = 1, /* Modern only */
+    .modernDoorGuide         = 1, /* Modern only */
     .minimapShape            = 1, /* deprecated; only feeds the old-config migration */
     .configVersion           = 0, /* absent key = pre-versioning; migration runs, then it is stamped */
     .minimapScale            = 75.0f,
@@ -1220,6 +1221,8 @@ void PcConfig_Load(const char* path)
             g_PcConfig.autosaveBeforeBoss = (atoi(value) != 0);
         else if (strcmp(key, "modern_key_glint") == 0)
             g_PcConfig.modernKeyGlint = (atoi(value) != 0);
+        else if (strcmp(key, "modern_door_guide") == 0)
+            g_PcConfig.modernDoorGuide = (atoi(value) != 0);
         else if (strcmp(key, "auto_reload") == 0)
         {
             int v = atoi(value);
