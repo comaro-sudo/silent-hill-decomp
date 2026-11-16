@@ -44,6 +44,8 @@
 #define AUTO_GLINT 106   /* "<frame> GLINTALL": every key item shines (Modern) */
 #define AUTO_WARPK 107   /* "<frame> WARPKEY <n>": Harry next to key-item spot n */
 #define AUTO_BOSS  108   /* "<frame> BOSSSIM": Modern autosave sees a boss in this room */
+#define AUTO_EQUIP 110   /* "<frame> EQUIP <id>": equip owned weapon <id> */
+#define AUTO_WARPP 109   /* "<frame> WARPPOI <n>": Harry inside map point n, facing it */
 #define AUTO_MAX 512
 typedef struct { int first, last, period, bit, hold; } AutoKey;
 static AutoKey s_auto[AUTO_MAX];
@@ -56,7 +58,7 @@ static int Auto_Bit(const char* n)
         {"SELECT",PSX_SELECT},{"START",PSX_START},{"UP",PSX_UP},{"RIGHT",PSX_RIGHT},
         {"DOWN",PSX_DOWN},{"LEFT",PSX_LEFT},{"L2",PSX_L2},{"R2",PSX_R2},{"L1",PSX_L1},
         {"R1",PSX_R1},{"TRIANGLE",PSX_TRIANGLE},{"CIRCLE",PSX_CIRCLE},{"CROSS",PSX_CROSS},
-        {"SQUARE",PSX_SQUARE},{"QSAVE",AUTO_QSAVE},{"QLOAD",AUTO_QLOAD},{"TOAST",AUTO_TOAST},{"OFFTV",AUTO_OFFTV},{"FLAG",AUTO_FLAG},{"GIVE",AUTO_GIVE},{"GLINTALL",AUTO_GLINT},{"WARPKEY",AUTO_WARPK},{"BOSSSIM",AUTO_BOSS},
+        {"SQUARE",PSX_SQUARE},{"QSAVE",AUTO_QSAVE},{"QLOAD",AUTO_QLOAD},{"TOAST",AUTO_TOAST},{"OFFTV",AUTO_OFFTV},{"FLAG",AUTO_FLAG},{"GIVE",AUTO_GIVE},{"GLINTALL",AUTO_GLINT},{"WARPKEY",AUTO_WARPK},{"WARPPOI",AUTO_WARPP},{"EQUIP",AUTO_EQUIP},{"BOSSSIM",AUTO_BOSS},
     };
     unsigned i;
     for (i = 0; i < sizeof(k) / sizeof(k[0]); i++)
@@ -126,6 +128,16 @@ void Autoplay_Apply(unsigned short* psx)
         if (k->bit == AUTO_BOSS) {
             extern void Pc_Saves_TestBossSim(void);
             if (s_autoFrame == k->first) Pc_Saves_TestBossSim();
+            continue;
+        }
+        if (k->bit == AUTO_EQUIP) {
+            extern void Xbox_TestEquip(int id);
+            if (s_autoFrame == k->first) Xbox_TestEquip(k->hold);
+            continue;
+        }
+        if (k->bit == AUTO_WARPP) {
+            extern void Xbox_TestWarpToPoint(int n);
+            if (rel == 0 && s_autoFrame <= k->last) Xbox_TestWarpToPoint(k->hold);
             continue;
         }
         if (k->bit == AUTO_WARPK) {

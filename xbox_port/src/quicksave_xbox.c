@@ -18,6 +18,7 @@
 #include "game.h"
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/screen/screen_draw.h"
+#include "bodyprog/item_screens.h"
 #include "main/fsqueue.h"
 #include "sh_log.h"
 #include "pc_config.h"
@@ -52,6 +53,43 @@ void Xbox_TestEventFlagSet(int flag)
     if (g_SavegamePtr == NULL || flag < 0 || flag >= 52 * 32) return;
     Savegame_EventFlagSet(flag);
     SH_DBG("[TEST] event flag %d set", flag);
+}
+
+/* As equipping from the inventory does (pc_combat.c Pc_EquipWeapon, which the
+ * console builds leave out). */
+void Xbox_TestEquip(int id)
+{
+    extern void GameFs_WeaponInfoUpdate(void);
+    s32 i, slot = -1, ammo = -1;
+    if (g_SavegamePtr == NULL) return;
+    for (i = 0; i < INV_ITEM_COUNT_MAX; i++)
+    {
+        if (g_SavegamePtr->items[i].id_0 == (u8)id)                         slot = i;
+        if (g_SavegamePtr->items[i].id_0 == (u8)(id + InvItemId_HealthDrink)) ammo = i;
+    }
+    if (slot < 0) { SH_DBG("[TEST] equip %d: not owned", id); return; }
+    g_Inventory_EquippedItem                  = (u8)id;
+    g_SavegamePtr->equippedWeapon             = (u8)id;
+    g_SysWork.playerCombat.weaponAttack       = id + InvItemId_KitchenKnife;
+    g_SysWork.playerCombat.weaponInventoryIdx = slot;
+    g_SysWork.playerCombat.currentWeaponAmmo  = g_SavegamePtr->items[slot].count_1;
+    g_SysWork.playerCombat.totalWeaponAmmo    =
+        (INV_ITEM_GROUP(id) == InvItemGroup_GunWeapons && ammo >= 0) ? (s8)g_SavegamePtr->items[ammo].count_1 : 0;
+    GameFs_WeaponInfoUpdate();
+    SH_DBG("[TEST] equipped %d (slot %d)", id, (int)slot);
+}
+
+/* Map points mark doors and triggers; a "touch, facing" trigger needs Harry
+ * inside its box and turned toward it, which scripted stick input can't aim. */
+void Xbox_TestWarpToPoint(int n)
+{
+    const s_MapPoint2d* p;
+    if (g_SavegamePtr == NULL || n < 0 || g_MapOverlayHdr.mapPoints == NULL) return;
+    p = &g_MapOverlayHdr.mapPoints[n];
+    g_SysWork.playerWork.player.position.vx = p->positionX + Q12(0.4f);
+    g_SysWork.playerWork.player.position.vz = p->positionZ;
+    g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(270.0f);   /* toward -X */
+    SH_DBG("[TEST] warp to map point %d (%d, %d)", n, (int)p->positionX, (int)p->positionZ);
 }
 
 /* A boss fight is the one place a quick save can strand a run: the save records
