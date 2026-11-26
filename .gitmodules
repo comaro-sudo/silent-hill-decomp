@@ -10,16 +10,6 @@
 [submodule "tools/maspsx"]
     path = tools/maspsx
     url = https://github.com/mkst/maspsx.git
-[submodule "pc_port/PsyCross"]
-	path = pc_port/PsyCross
-	url = https://github.com/SlickAmogus/PsyCross.git
 [submodule "pc_port/third_party/rcheevos"]
 	path = pc_port/third_party/rcheevos
 	url = https://github.com/RetroAchievements/rcheevos.git
-[submodule "android_port/app/jni/SDL"]
-	path = android_port/app/jni/SDL
-	url = https://github.com/libsdl-org/SDL.git
-[submodule "ios_port/SDL"]
-	path = ios_port/SDL
-	url = https://github.com/libsdl-org/SDL.git
-	branch = main
